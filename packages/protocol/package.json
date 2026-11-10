@@ -2,7 +2,7 @@
   "name": "@harrier-gg/protocol",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent-Protokoll-Typen, generiert aus ../agent/crates/protocol (just protocol). Nicht von Hand ändern.",
+  "description": "Agent protocol types, generated from ../agent/crates/protocol (just protocol). Do not edit by hand.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

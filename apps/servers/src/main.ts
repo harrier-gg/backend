@@ -28,7 +28,7 @@ async function bootstrap() {
   });
   app.enableShutdownHooks();
   await app.listen();
-  new Logger('Servers').log(`Harrier Servers v${VERSION} hört auf NATS ${config.HARRIER_NATS_URL}`);
+  new Logger('Servers').log(`Harrier Servers v${VERSION} listening on NATS ${config.HARRIER_NATS_URL}`);
 }
 
 void bootstrap();

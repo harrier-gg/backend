@@ -3,29 +3,29 @@ set dotenv-load
 default:
     @just --list
 
-# Abhängigkeiten installieren und alles bauen
+# Install dependencies and build everything
 setup:
     npm install
     npm run build
 
-# Postgres und NATS starten
+# Start Postgres and NATS
 up:
     docker compose -f compose.dev.yaml up -d --wait
 
-# Postgres und NATS stoppen
+# Stop Postgres and NATS
 down:
     docker compose -f compose.dev.yaml down
 
-# Infrastruktur + alle Services im Watch-Modus
+# Infrastructure + all services in watch mode
 dev: up
     npm run dev
 
-# openapi.json neu erzeugen (nach jeder API-Änderung, Datei wird committet)
+# Regenerate openapi.json (after every API change; the file is committed)
 api:
     npm run build
     npm run openapi
 
-# Protokoll-Typen aus ../agent übernehmen (nach jeder Protokolländerung, wird committet)
+# Take over the protocol types from ../agent (after every protocol change; committed)
 protocol:
     cd ../agent && just protocol
     rm -rf packages/protocol/src/generated
@@ -35,7 +35,7 @@ protocol:
 test:
     npm test
 
-# Alles, was die CI prüft
+# Everything CI checks
 check:
     npm run lint
     npm run check-types

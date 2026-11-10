@@ -18,7 +18,7 @@ class HealthDto {
 
 class MetaDto {
   @ApiProperty({ example: '0.1.0' }) version!: string;
-  @ApiProperty({ description: 'Hash der API-Form (paths + components). Das Web vergleicht ihn mit seinem generierten Client.' })
+  @ApiProperty({ description: 'Hash of the API shape (paths + components). The web app compares it with its generated client.' })
   contract!: string;
 }
 

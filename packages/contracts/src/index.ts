@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** NATS-Subjects. Format: `<service>.<aktion>`. Nur hier definieren, nie als String-Literal im Code. */
+/** NATS subjects. Format: `<service>.<action>`. Define them only here, never as string literals in code. */
 export const Subjects = {
   serversHealth: 'servers.health',
 } as const;

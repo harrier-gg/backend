@@ -1,31 +1,35 @@
 # Harrier Backend
 
-NestJS-Microservices für das Harrier-Panel. Nur das `gateway` ist von außen erreichbar; die Services sprechen untereinander über NATS.
+NestJS microservices for the Harrier panel. Only the `gateway` is reachable from outside; the services talk to each other via NATS.
 
-| App/Paket | Zweck |
+| App/package | Purpose |
 |---|---|
-| `apps/gateway` | REST-API (`/api/v1`), API-Doku (`/api/docs`), WebSocket für Agents (`/agent/ws`) |
-| `apps/servers` | Server, Templates, Soll-Zustand (ab M1). Nur über NATS |
-| `packages/contracts` | NATS-Subjects und Zod-Schemas, die alle Services teilen |
-| `packages/protocol` | Agent-Protokoll-Typen, **generiert** aus `../agent` (`just protocol`) |
+| `apps/gateway` | REST API (`/api/v1`), API docs (`/api/docs`), WebSocket for agents (`/agent/ws`) |
+| `apps/servers` | Servers, templates, desired state (from M1). NATS only |
+| `packages/contracts` | NATS subjects and Zod schemas shared by all services |
+| `packages/protocol` | Agent protocol types, **generated** from `../agent` (`just protocol`) |
 
-## Entwickeln
+## Development
 
-Voraussetzungen: Node 22 (`.nvmrc`), Docker, [just](https://just.systems).
+Requirements: Node 22 (`.nvmrc`), Docker, [just](https://just.systems).
 
 ```bash
 just setup   # npm install + build
-just dev     # Postgres + NATS (Docker) und alle Services im Watch-Modus
+just dev     # Postgres + NATS (Docker) and all services in watch mode
 ```
 
 - Health: http://localhost:8080/api/v1/health
-- API-Doku: http://localhost:8080/api/docs
-- NATS-Monitoring: http://localhost:8222
+- API docs: http://localhost:8080/api/docs
+- NATS monitoring: http://localhost:8222
 
-| Befehl | Zweck |
+| Command | Purpose |
 |---|---|
-| `just api` | `openapi.json` neu erzeugen, nach jeder API-Änderung (wird committet) |
-| `just protocol` | Protokoll-Typen aus `../agent` übernehmen (wird committet) |
-| `just check` | Alles, was die CI prüft |
+| `just api` | Regenerate `openapi.json` after every API change (committed) |
+| `just protocol` | Take over the protocol types from `../agent` (committed) |
+| `just check` | Everything CI checks |
 
-Konfiguration nur über `HARRIER_*`-Umgebungsvariablen (`HARRIER_PORT`, `HARRIER_HOST` – Standard `127.0.0.1`, `HARRIER_NATS_URL`). Commits nach [Conventional Commits](https://www.conventionalcommits.org) – daraus erzeugt release-please Versionen und Changelog.
+Configuration via `HARRIER_*` environment variables only: `HARRIER_PORT`, `HARRIER_HOST` (default `127.0.0.1` until authentication exists), `HARRIER_NATS_URL`.
+
+The API speaks English only; errors use [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details, and the web panel translates them (see ADR 0003).
+
+See the [contributing guide](https://github.com/harrier-gg/.github/blob/main/CONTRIBUTING.md) for branches, PRs and releases.
