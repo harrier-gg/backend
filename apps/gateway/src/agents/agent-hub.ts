@@ -2,7 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } fro
 import { HttpAdapterHost } from '@nestjs/core';
 import type { Hello } from '@harrier-gg/protocol';
 import { randomUUID } from 'node:crypto';
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { answerHello } from './handshake';
 
@@ -36,7 +36,14 @@ export class AgentHub implements OnApplicationBootstrap, OnApplicationShutdown {
   onApplicationBootstrap() {
     const server: Server = this.http.httpAdapter.getHttpServer();
     // TODO(M1): Agent-Token prüfen (ADR folgt). Bis dahin lauscht das Gateway nur auf localhost (HARRIER_HOST).
-    this.wss = new WebSocketServer({ server, path: AGENT_WS_PATH, maxPayload: MAX_MESSAGE_BYTES });
+    this.wss = new WebSocketServer({
+      server,
+      path: AGENT_WS_PATH,
+      maxPayload: MAX_MESSAGE_BYTES,
+      // Browser senden immer einen Origin-Header, der Agent nie. So kann keine fremde Webseite
+      // über den Browser des Nutzers einen Agent vortäuschen (Cross-Site WebSocket Hijacking).
+      verifyClient: ({ req }: { req: IncomingMessage }) => req.headers.origin === undefined,
+    });
     this.wss.on('connection', (socket) => this.accept(socket));
   }
 
