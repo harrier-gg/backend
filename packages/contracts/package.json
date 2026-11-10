@@ -1,0 +1,15 @@
+{
+  "name": "@harrier-gg/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NATS-Subjects und Zod-Schemas, die alle Services teilen",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

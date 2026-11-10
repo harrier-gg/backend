@@ -1,0 +1,23 @@
+{
+  "name": "@harrier-gg/servers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server, Templates, Soll-Zustand (ab M1). Nur über NATS erreichbar",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc-watch -p tsconfig.json --onSuccess \"node --enable-source-maps dist/main.js\"",
+    "start": "node --enable-source-maps dist/main.js",
+    "check-types": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@harrier-gg/contracts": "*",
+    "@nats-io/transport-node": "^3.4.0",
+    "@nestjs/common": "^12.4.2",
+    "@nestjs/core": "^12.4.2",
+    "@nestjs/microservices": "^12.4.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
+  }
+}
