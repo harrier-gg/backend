@@ -22,7 +22,8 @@
           "path": "openapi.json",
           "jsonpath": "$.info.version"
         }
-      ]
+      ],
+      "include-component-in-tag": false
     }
   }
 }
