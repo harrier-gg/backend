@@ -15,7 +15,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag_name }}
     steps:
       - id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
 
   # Das Web-Repo zieht openapi.json aus dem Release (Vertrag Backend → Web)
   assets:
@@ -23,7 +23,7 @@ jobs:
     if: needs.release-please.outputs.released == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: gh release upload ${{ needs.release-please.outputs.tag }} openapi.json
         env:
           GH_TOKEN: ${{ github.token }}
