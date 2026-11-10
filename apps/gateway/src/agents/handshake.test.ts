@@ -20,7 +20,11 @@ test('lehnt zu alte und zu neue Agents mit Begründung ab', () => {
 });
 
 test('lehnt kaputte oder falsche erste Nachrichten ab', () => {
-  for (const raw of ['nicht json', '{"type":"hello"}', JSON.stringify({ type: 'other' })]) {
+  const evilHostname = JSON.stringify({
+    type: 'hello', protocol: PROTOCOL.current, agentVersion: '0.1.0', os: 'linux', arch: 'x86_64',
+    hostname: 'box\n[Nest] LOG gefälschte Zeile',
+  });
+  for (const raw of ['nicht json', '{"type":"hello"}', JSON.stringify({ type: 'other' }), evilHostname]) {
     assert.equal(answerHello(raw, 'a1').accepted, false);
   }
 });

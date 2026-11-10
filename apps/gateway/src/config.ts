@@ -3,6 +3,8 @@ import { z } from 'zod';
 // Konfiguration nur über HARRIER_*-Variablen. Falsche Werte → Start bricht mit klarer Meldung ab.
 const ConfigSchema = z.object({
   HARRIER_PORT: z.coerce.number().int().positive().default(8080),
+  // Standard nur localhost: Bis Login (M2) und Agent-Tokens (M1) existieren, darf das Gateway nicht im Netz hängen.
+  HARRIER_HOST: z.string().default('127.0.0.1'),
   HARRIER_NATS_URL: z.string().url().default('nats://localhost:4222'),
 });
 

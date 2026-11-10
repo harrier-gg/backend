@@ -8,12 +8,13 @@ import { z } from 'zod';
 export const PROTOCOL = { minimum: 1, current: 1 } as const;
 
 // `z.ZodType<Hello>` bricht den Build, sobald die generierten Rust-Typen und dieses Schema auseinanderlaufen.
+// Die Regex-Grenzen halten Steuerzeichen (Log-Injection) und riesige Werte draußen.
 const HelloSchema: z.ZodType<Hello> = z.object({
   protocol: z.number().int().nonnegative(),
-  agentVersion: z.string(),
-  os: z.string(),
-  arch: z.string(),
-  hostname: z.string(),
+  agentVersion: z.string().regex(/^[0-9A-Za-z.+-]{1,64}$/),
+  os: z.string().regex(/^[a-z0-9_]{1,32}$/),
+  arch: z.string().regex(/^[a-z0-9_]{1,32}$/),
+  hostname: z.string().regex(/^[A-Za-z0-9._-]{1,253}$/),
 });
 
 const AgentHelloMessage = HelloSchema.and(z.object({ type: z.literal('hello') }));

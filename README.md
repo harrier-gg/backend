@@ -28,4 +28,4 @@ just dev     # Postgres + NATS (Docker) und alle Services im Watch-Modus
 | `just protocol` | Protokoll-Typen aus `../agent` übernehmen (wird committet) |
 | `just check` | Alles, was die CI prüft |
 
-Konfiguration nur über `HARRIER_*`-Umgebungsvariablen (`HARRIER_PORT`, `HARRIER_NATS_URL`). Commits nach [Conventional Commits](https://www.conventionalcommits.org) – daraus erzeugt release-please Versionen und Changelog.
+Konfiguration nur über `HARRIER_*`-Umgebungsvariablen (`HARRIER_PORT`, `HARRIER_HOST` – Standard `127.0.0.1`, `HARRIER_NATS_URL`). Commits nach [Conventional Commits](https://www.conventionalcommits.org) – daraus erzeugt release-please Versionen und Changelog.

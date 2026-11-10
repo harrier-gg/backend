@@ -18,7 +18,7 @@ async function bootstrap() {
   app.get(ContractRef).value = contract;
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(config.HARRIER_PORT);
+  await app.listen(config.HARRIER_PORT, config.HARRIER_HOST);
   const log = new Logger('Gateway');
   log.log(`Harrier Gateway v${VERSION} auf http://localhost:${config.HARRIER_PORT} (Contract ${contract})`);
   log.log(`API-Doku: http://localhost:${config.HARRIER_PORT}/api/docs · Agents: ws://localhost:${config.HARRIER_PORT}${AGENT_WS_PATH}`);

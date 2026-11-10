@@ -8,6 +8,9 @@ import { answerHello } from './handshake';
 
 export const AGENT_WS_PATH = '/agent/ws';
 const HELLO_TIMEOUT_MS = 10_000;
+const MAX_MESSAGE_BYTES = 16 * 1024;
+// ponytail: feste Obergrenze gegen Verbindungsfluten; ab M1 zählen nur noch Agents mit gültigem Token
+const MAX_AGENTS = 256;
 
 export interface ConnectedAgent extends Hello {
   id: string;
@@ -32,7 +35,8 @@ export class AgentHub implements OnApplicationBootstrap, OnApplicationShutdown {
 
   onApplicationBootstrap() {
     const server: Server = this.http.httpAdapter.getHttpServer();
-    this.wss = new WebSocketServer({ server, path: AGENT_WS_PATH });
+    // TODO(M1): Agent-Token prüfen (ADR folgt). Bis dahin lauscht das Gateway nur auf localhost (HARRIER_HOST).
+    this.wss = new WebSocketServer({ server, path: AGENT_WS_PATH, maxPayload: MAX_MESSAGE_BYTES });
     this.wss.on('connection', (socket) => this.accept(socket));
   }
 
@@ -42,6 +46,10 @@ export class AgentHub implements OnApplicationBootstrap, OnApplicationShutdown {
   }
 
   private accept(socket: WebSocket) {
+    if (this.wss!.clients.size > MAX_AGENTS) {
+      socket.close(1013, 'Zu viele Verbindungen');
+      return;
+    }
     const id = randomUUID();
     const timeout = setTimeout(() => socket.close(4000, 'Kein hello erhalten'), HELLO_TIMEOUT_MS);
 
