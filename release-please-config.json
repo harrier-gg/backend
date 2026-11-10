@@ -7,8 +7,21 @@
       "extra-files": [
         "apps/gateway/src/version.ts",
         "apps/servers/src/version.ts",
-        { "type": "json", "path": "apps/gateway/package.json", "jsonpath": "$.version" },
-        { "type": "json", "path": "apps/servers/package.json", "jsonpath": "$.version" }
+        {
+          "type": "json",
+          "path": "apps/gateway/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "apps/servers/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "openapi.json",
+          "jsonpath": "$.info.version"
+        }
       ]
     }
   }
