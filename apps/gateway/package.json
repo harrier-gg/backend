@@ -2,7 +2,7 @@
   "name": "@harrier-gg/gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "Einziger öffentlicher Einstiegspunkt: REST für das Web, WebSocket für Agents",
+  "description": "Single public entry point: REST for the web app, WebSocket for agents",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

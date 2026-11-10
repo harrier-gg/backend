@@ -2,7 +2,7 @@
   "name": "@harrier-gg/contracts",
   "version": "0.1.0",
   "private": true,
-  "description": "NATS-Subjects und Zod-Schemas, die alle Services teilen",
+  "description": "NATS subjects and Zod schemas shared by all services",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

@@ -124,7 +124,7 @@
           },
           "contract": {
             "type": "string",
-            "description": "Hash der API-Form (paths + components). Das Web vergleicht ihn mit seinem generierten Client."
+            "description": "Hash of the API shape (paths + components). The web app compares it with its generated client."
           }
         },
         "required": [

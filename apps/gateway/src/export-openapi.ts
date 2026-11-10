@@ -4,14 +4,14 @@ import { writeFileSync } from 'node:fs';
 import { AppModule } from './app.module';
 import { buildOpenApi } from './openapi';
 
-// Schreibt openapi.json ohne den Server zu starten. Aufruf: `just api`.
+// Writes openapi.json without starting the server. Usage: `just api`.
 async function main() {
   const out = process.argv[2] ?? 'openapi.json';
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix('api/v1');
   const { document, contract } = buildOpenApi(app);
   writeFileSync(out, `${JSON.stringify(document, null, 2)}\n`);
-  console.log(`${out} geschrieben (Contract ${contract})`);
+  console.log(`${out} written (contract ${contract})`);
   await app.close();
 }
 

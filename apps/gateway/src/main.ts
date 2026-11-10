@@ -20,8 +20,8 @@ async function bootstrap() {
 
   await app.listen(config.HARRIER_PORT, config.HARRIER_HOST);
   const log = new Logger('Gateway');
-  log.log(`Harrier Gateway v${VERSION} auf http://localhost:${config.HARRIER_PORT} (Contract ${contract})`);
-  log.log(`API-Doku: http://localhost:${config.HARRIER_PORT}/api/docs · Agents: ws://localhost:${config.HARRIER_PORT}${AGENT_WS_PATH}`);
+  log.log(`Harrier Gateway v${VERSION} on http://${config.HARRIER_HOST}:${config.HARRIER_PORT} (contract ${contract})`);
+  log.log(`API docs: http://${config.HARRIER_HOST}:${config.HARRIER_PORT}/api/docs · agents: ws://${config.HARRIER_HOST}:${config.HARRIER_PORT}${AGENT_WS_PATH}`);
 }
 
 void bootstrap();

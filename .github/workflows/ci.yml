@@ -18,5 +18,5 @@ jobs:
       - run: npm run check-types
       - run: npm test
       - run: npm run build
-      - name: openapi.json ist aktuell (sonst `just api` ausführen und committen)
+      - name: openapi.json is up to date (otherwise run `just api` and commit)
         run: npm run openapi && git diff --exit-code openapi.json

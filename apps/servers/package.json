@@ -2,7 +2,7 @@
   "name": "@harrier-gg/servers",
   "version": "0.1.0",
   "private": true,
-  "description": "Server, Templates, Soll-Zustand (ab M1). Nur über NATS erreichbar",
+  "description": "Servers, templates, desired state (from M1). Reachable via NATS only",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

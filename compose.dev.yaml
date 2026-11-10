@@ -1,4 +1,4 @@
-# Infrastruktur für die lokale Entwicklung. Die Services selbst laufen per `just dev` auf dem Host.
+# Infrastructure for local development. The services themselves run on the host via `just dev`.
 name: harrier-dev
 
 services:
