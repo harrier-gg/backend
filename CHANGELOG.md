@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/harrier-gg/backend/compare/v0.5.0...v0.6.0) (2026-11-11)
+
+
+### Features
+
+* backup schedule, endpoints and downloads ([#26](https://github.com/harrier-gg/backend/issues/26)) ([78b3081](https://github.com/harrier-gg/backend/commit/78b3081422ba350f5bdc4377381c83a58c040e18))
+* file manager endpoints with streamed uploads and downloads ([#24](https://github.com/harrier-gg/backend/issues/24)) ([cc50ed1](https://github.com/harrier-gg/backend/commit/cc50ed1ae981861dc199a9e645e2351cb7e22d38))
+
+
+### Bug Fixes
+
+* anchor the backup save confirmation to the game's log line ([#27](https://github.com/harrier-gg/backend/issues/27)) ([572d066](https://github.com/harrier-gg/backend/commit/572d066cb5a42e8fab04d570ec0636b71cc5def8))
+
 ## [0.5.0](https://github.com/harrier-gg/backend/compare/v0.4.0...v0.5.0) (2026-11-11)
 
 
