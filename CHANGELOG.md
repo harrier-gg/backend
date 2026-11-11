@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/harrier-gg/backend/compare/v0.3.0...v0.4.0) (2026-11-11)
+
+
+### Features
+
+* sleeping servers; sleep after setting and wake on connect ([#20](https://github.com/harrier-gg/backend/issues/20)) ([47948bd](https://github.com/harrier-gg/backend/commit/47948bd2538f582fcd2e1b4b78c0ac313277b8ff))
+
 ## [0.3.0](https://github.com/harrier-gg/backend/compare/v0.2.0...v0.3.0) (2026-11-11)
 
 

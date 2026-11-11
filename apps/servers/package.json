@@ -1,6 +1,6 @@
 {
   "name": "@harrier-gg/servers",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Servers, templates, desired state (from M1). Reachable via NATS only",
   "main": "dist/main.js",
