@@ -76,6 +76,16 @@ test('the runtime spec is game-neutral and carries env, limits and ports', () =>
   assert.deepEqual([spec.sleep?.wake?.protocol, spec.sleep?.wake?.port], ['minecraft', 25566], 'woken on the game port');
   assert.equal(buildSpec(paper, { ...result.settings, sleepAfter: 0 }, 25566).sleep, null, '0 = never');
   assert.ok(spec.readyPattern && new RegExp(spec.readyPattern).test('[Server thread/INFO]: Done (3.2s)! For help, type "help"'));
+
+  // The backup waits for the game's save confirmation, which players cannot fake in chat.
+  const saved = new RegExp(paper.capabilities.backup!.ready!);
+  assert.ok(saved.test('[16:21:41] [Server thread/INFO]: System chat: Saved the game'));
+  assert.ok(saved.test('[16:21:41] [Server thread/INFO]: Saved the game'), 'older versions');
+  assert.ok(saved.test('[16:21:41 INFO]: Saved the game'), 'Paper');
+  assert.ok(!saved.test('[16:21:41] [Server thread/INFO]: <Griefer> INFO]: Saved the game'));
+  assert.ok(!saved.test('[16:21:41 INFO]: <Griefer> [16:21:41 INFO]: Saved the game'));
+  assert.ok(!saved.test('[16:21:41] [Server thread/INFO]: <Griefer> Saved the game'));
+  assert.ok(!saved.test('[16:21:41] [Async Chat Thread - #0/INFO]: <Griefer> ]: Saved the game'));
 });
 
 test('a variant whose base is missing is reported clearly', () => {
