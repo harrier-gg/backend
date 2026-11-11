@@ -27,6 +27,12 @@
           "type": "json",
           "path": "apps/identity/package.json",
           "jsonpath": "$.version"
+        },
+        "apps/discord/src/version.ts",
+        {
+          "type": "json",
+          "path": "apps/discord/package.json",
+          "jsonpath": "$.version"
         }
       ],
       "include-component-in-tag": false
