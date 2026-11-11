@@ -42,6 +42,13 @@ export class AgentHub implements OnApplicationShutdown {
   private readonly logger = new Logger(AgentHub.name);
   private readonly agents = new Map<string, { info: ConnectedAgent; socket: WebSocket }>();
   private readonly nodeOf = new WeakMap<IncomingMessage, Node>();
+  /** Every socket of a node, from the upgrade on (also before its hello), so removal reaches all. */
+  private readonly sockets = new Map<string, Set<WebSocket>>();
+  /**
+   * Nodes removed while this gateway runs. A token that was valid a moment before the removal must
+   * not finish its handshake afterwards. ponytail: in memory; node IDs are never reused (UUIDv7).
+   */
+  private readonly removed = new Set<string>();
   readonly wss: WebSocketServer;
 
   constructor(
@@ -66,9 +73,10 @@ export class AgentHub implements OnApplicationShutdown {
     return this.agents.has(nodeId);
   }
 
-  /** Drops a node's connection, e.g. after the node was removed and its token revoked. */
+  /** Drops every connection of a removed node, including ones still in their handshake. */
   disconnect(nodeId: string) {
-    this.agents.get(nodeId)?.socket.close(4001, 'Node removed');
+    this.removed.add(nodeId);
+    for (const socket of this.sockets.get(nodeId) ?? []) socket.close(4001, 'Node removed');
   }
 
   /** Delivers a panel message to a node's agent. Returns false if the node is offline. */
@@ -110,10 +118,20 @@ export class AgentHub implements OnApplicationShutdown {
   }
 
   private accept(socket: WebSocket, node: Node) {
+    if (this.removed.has(node.id)) return void socket.close(4001, 'Node removed');
+    let sockets = this.sockets.get(node.id);
+    if (!sockets) this.sockets.set(node.id, (sockets = new Set()));
+    sockets.add(socket);
+    socket.on('close', () => {
+      sockets.delete(socket);
+      if (sockets.size === 0) this.sockets.delete(node.id);
+    });
+
     const timer = setTimeout(() => socket.close(4000, 'No hello received'), HELLO_TIMEOUT_MS);
 
     socket.once('message', (data) => {
       clearTimeout(timer);
+      if (this.removed.has(node.id) || socket.readyState !== WebSocket.OPEN) return void socket.close(4001, 'Node removed');
       const result = answerHello(data.toString(), node.id);
       socket.send(JSON.stringify(result.reply));
 
