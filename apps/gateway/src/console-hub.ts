@@ -11,6 +11,11 @@ import { NATS } from './nats';
 export const CONSOLE_WS_PATH = /^\/api\/v1\/servers\/([0-9a-f-]{36})\/console$/;
 // ponytail: 64 KB of recent output per server, in memory of this gateway; persistent logs later
 const BUFFER_BYTES = 64 * 1024;
+// An agent can only feed channels of its own node, but could invent server IDs. Capping channels
+// per node bounds the memory a misbehaving agent can use.
+// ponytail: fixed cap; verify server IDs against the servers service if nodes get this many servers
+const MAX_CHANNELS_PER_NODE = 128;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 interface Channel {
   output: string;
@@ -34,16 +39,22 @@ export type ConsoleEvent =
 export class ConsoleHub {
   private readonly logger = new Logger(ConsoleHub.name);
   private readonly channels = new Map<string, Channel>();
+  private readonly perNode = new Map<string, number>();
   readonly wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
 
   constructor(@Inject(NATS) private readonly nats: ClientProxy) {
     this.wss.on('connection', (socket, req) => void this.accept(socket, req));
   }
 
-  private channel(nodeId: string, serverId: string): Channel {
+  private channel(nodeId: string, serverId: string): Channel | null {
     const key = `${nodeId}:${serverId}`;
     let channel = this.channels.get(key);
-    if (!channel) this.channels.set(key, (channel = { output: '', browsers: new Set() }));
+    if (!channel) {
+      const count = this.perNode.get(nodeId) ?? 0;
+      if (!UUID.test(serverId) || count >= MAX_CHANNELS_PER_NODE) return null;
+      this.perNode.set(nodeId, count + 1);
+      this.channels.set(key, (channel = { output: '', browsers: new Set() }));
+    }
     return channel;
   }
 
@@ -54,12 +65,14 @@ export class ConsoleHub {
 
   output(nodeId: string, serverId: string, data: string) {
     const channel = this.channel(nodeId, serverId);
+    if (!channel) return;
     channel.output = (channel.output + data).slice(-BUFFER_BYTES);
     this.broadcast(channel, { type: 'output', data });
   }
 
   status(nodeId: string, serverId: string, status: ServerStatus, message: string | null) {
     const channel = this.channel(nodeId, serverId);
+    if (!channel) return;
     channel.status = { status, message };
     if (status !== 'running') channel.stats = undefined;
     this.broadcast(channel, { type: 'status', status, message });
@@ -67,6 +80,7 @@ export class ConsoleHub {
 
   stats(nodeId: string, serverId: string, stats: Omit<ServerStats, 'serverId'>) {
     const channel = this.channel(nodeId, serverId);
+    if (!channel) return;
     channel.stats = stats;
     this.broadcast(channel, { type: 'stats', ...stats });
   }
@@ -96,6 +110,10 @@ export class ConsoleHub {
     }
     const server = reply.data;
     const channel = this.channel(server.nodeId, server.id);
+    if (!channel) {
+      socket.close(1013, 'Too many consoles on this node');
+      return;
+    }
     channel.browsers.add(socket);
     socket.send(
       JSON.stringify({
