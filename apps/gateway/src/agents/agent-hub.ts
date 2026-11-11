@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Subjects, type AuthenticateNodeReply } from '@harrier-gg/contracts';
-import type { AgentMessage, Hello, PanelMessage } from '@harrier-gg/protocol';
+import type { AgentMessage, Hello, PanelMessage, Restart } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -173,10 +173,16 @@ export class AgentHub implements OnApplicationShutdown {
         break;
       }
       case 'serverState':
-        this.consoles.status(node.id, message.serverId, message.status, message.message ?? null);
+        this.consoles.status(node.id, message.serverId, message.status, message.message ?? null, restartOf(message.restart));
         // The servers service validates the payload and only updates servers of this node.
         this.nats.emit(Subjects.agentsEvent, { nodeId: node.id, message });
         break;
     }
   }
+}
+
+/** The restart info of a crashed server (ADR 0010), reduced to two numbers. Older agents send none. */
+function restartOf(restart: Restart | null | undefined): Restart | null {
+  if (typeof restart !== 'object' || restart === null) return null;
+  return { attempt: Number(restart.attempt) || 0, maxAttempts: Number(restart.maxAttempts) || 0 };
 }

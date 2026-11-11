@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { can, Subjects, type MetricsRecord, type Reply, type ServerStatus, type ServerSummary, type UserSummary } from '@harrier-gg/contracts';
-import type { ServerPlayers, ServerStats } from '@harrier-gg/protocol';
+import type { Restart, ServerPlayers, ServerStats } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -23,7 +23,7 @@ interface Channel {
   nodeId: string;
   serverId: string;
   output: string;
-  status?: { status: ServerStatus; message: string | null };
+  status?: { status: ServerStatus; message: string | null; restart: Restart | null };
   stats?: Omit<ServerStats, 'serverId'>;
   players?: Players;
   /** Values of the current minute for the history (ADR 0009). */
@@ -33,9 +33,9 @@ interface Channel {
 
 /** Messages to the browser. */
 export type ConsoleEvent =
-  | { type: 'snapshot'; output: string; status: ServerStatus; message: string | null; stats: Channel['stats'] | null; players: Players | null }
+  | { type: 'snapshot'; output: string; status: ServerStatus; message: string | null; restart: Restart | null; stats: Channel['stats'] | null; players: Players | null }
   | { type: 'output'; data: string }
-  | { type: 'status'; status: ServerStatus; message: string | null }
+  | { type: 'status'; status: ServerStatus; message: string | null; restart: Restart | null }
   | { type: 'stats'; cpuPercent: number; memoryBytes: number; memoryLimitBytes: number }
   | ({ type: 'players' } & Players);
 
@@ -106,15 +106,16 @@ export class ConsoleHub implements OnApplicationShutdown {
     this.broadcast(channel, { type: 'output', data });
   }
 
-  status(nodeId: string, serverId: string, status: ServerStatus, message: string | null) {
+  /** `restart` is set while the agent waits to restart a crashed server (ADR 0010). */
+  status(nodeId: string, serverId: string, status: ServerStatus, message: string | null, restart: Restart | null = null) {
     const channel = this.channel(nodeId, serverId);
     if (!channel) return;
-    channel.status = { status, message };
+    channel.status = { status, message, restart };
     if (status !== 'running') {
       channel.stats = undefined;
       channel.players = undefined;
     }
-    this.broadcast(channel, { type: 'status', status, message });
+    this.broadcast(channel, { type: 'status', status, message, restart });
   }
 
   stats(nodeId: string, serverId: string, stats: Omit<ServerStats, 'serverId'>) {
@@ -172,6 +173,7 @@ export class ConsoleHub implements OnApplicationShutdown {
         output: channel.output,
         status: channel.status?.status ?? server.status,
         message: channel.status?.message ?? server.statusMessage,
+        restart: channel.status?.restart ?? null,
         stats: channel.stats ?? null,
         players: channel.players ?? null,
       } satisfies ConsoleEvent),

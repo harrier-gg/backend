@@ -8,6 +8,7 @@ export type * from './generated/PortProtocol';
 export type * from './generated/QueryProtocol';
 export type * from './generated/QuerySpec';
 export type * from './generated/Reject';
+export type * from './generated/Restart';
 export type * from './generated/RuntimeSpec';
 export type * from './generated/SendCommand';
 export type * from './generated/ServerPlayers';
