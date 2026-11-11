@@ -3,6 +3,7 @@ import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
 import { ApiBody, ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   Subjects,
+  type AgentsRequestReply,
   type AgentsSendReply,
   type AgentsSendRequest,
   type MetricPoint,
@@ -27,20 +28,31 @@ class LocalizedTextDto {
   @ApiPropertyOptional() de?: string;
 }
 
-class SelectOptionDto {
-  @ApiProperty() value!: string;
-  @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
-}
-
 class TemplateConfigFieldDto implements TemplateConfigField {
   @ApiProperty() key!: string;
   @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
-  @ApiProperty({ enum: ['string', 'integer', 'boolean', 'select'] }) type!: 'string' | 'integer' | 'boolean' | 'select';
-  @ApiProperty({ oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] }) default!: string | number | boolean;
+  @ApiProperty({ enum: ['string', 'integer'] }) type!: 'string' | 'integer';
+  @ApiProperty({ oneOf: [{ type: 'string' }, { type: 'number' }] }) default!: string | number;
   @ApiPropertyOptional() min?: number;
   @ApiPropertyOptional() max?: number;
   @ApiPropertyOptional() pattern?: string;
-  @ApiPropertyOptional({ type: [SelectOptionDto], description: 'Choices of a select field' }) options?: SelectOptionDto[];
+}
+
+class ConfigFileRefDto {
+  @ApiProperty({ example: 'server.properties' }) path!: string;
+}
+
+class TemplateFileDto extends ConfigFileRefDto {
+  @ApiPropertyOptional({ type: LocalizedTextDto }) description?: LocalizedTextDto;
+}
+
+class ConfigFileDto extends ConfigFileRefDto {
+  @ApiProperty({ type: String, nullable: true, description: 'null while the file does not exist, e.g. before the first start' })
+  content!: string | null;
+}
+
+class WriteConfigFileDto extends ConfigFileRefDto {
+  @ApiProperty({ description: 'New content, at most 128 KiB' }) content!: string;
 }
 
 class NamedDto {
@@ -56,6 +68,7 @@ class TemplateDto implements TemplateSummary {
   @ApiProperty({ example: 'minecraft-java/paper' }) id!: string;
   @ApiProperty({ type: NamedDto }) game!: NamedDto;
   @ApiProperty({ type: VariantDto }) variant!: VariantDto;
+  @ApiProperty({ type: [TemplateFileDto], description: 'Files owners and admins can edit' }) files!: TemplateFileDto[];
   @ApiProperty({ type: [TemplateConfigFieldDto] }) config!: TemplateConfigFieldDto[];
 }
 
@@ -80,8 +93,8 @@ class ServerDto implements ServerSummary {
   @ApiProperty() name!: string;
   @ApiProperty() nodeId!: string;
   @ApiProperty() templateId!: string;
-  @ApiProperty({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] } })
-  settings!: Record<string, string | number | boolean>;
+  @ApiProperty({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] } })
+  settings!: Record<string, string | number>;
   @ApiProperty({ description: 'Port players connect to on the node' }) hostPort!: number;
   @ApiProperty({ enum: STATUSES }) status!: ServerStatus;
   @ApiProperty({ type: String, nullable: true }) statusMessage!: string | null;
@@ -92,13 +105,13 @@ class CreateServerDto {
   @ApiProperty() nodeId!: string;
   @ApiProperty({ example: 'Survival' }) name!: string;
   @ApiProperty({ example: 'minecraft-java/paper' }) templateId!: string;
-  @ApiPropertyOptional({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] } })
-  settings?: Record<string, string | number | boolean>;
+  @ApiPropertyOptional({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] } })
+  settings?: Record<string, string | number>;
 }
 
 class SettingsDto {
-  @ApiProperty({ ...{ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] } }, description: 'Changed settings; keys left out keep their value' })
-  settings!: Record<string, string | number | boolean>;
+  @ApiProperty({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] }, description: 'Changed settings; keys left out keep their value' })
+  settings!: Record<string, string | number>;
 }
 
 class MetricPointDto implements MetricPoint {
@@ -225,6 +238,24 @@ export class ServersController {
     return call(this.nats, Subjects.serversUpdateSettings, { id, settings: body?.settings });
   }
 
+  /** A config file the template lists (ADR 0011). */
+  @Get('servers/:id/files')
+  @Allow('manageServers')
+  @ApiQuery({ name: 'path', example: 'server.properties' })
+  @ApiOkResponse({ type: ConfigFileDto })
+  readFile(@Param('id', ParseUUIDPipe) id: string, @Query('path') path: string): Promise<ConfigFileDto> {
+    return call(this.nats, Subjects.serversReadFile, { id, path });
+  }
+
+  /** Replaces a config file the template lists. The server reads it on its next start. */
+  @Put('servers/:id/files')
+  @Allow('manageServers')
+  @ApiBody({ type: WriteConfigFileDto })
+  @ApiOkResponse({ type: ConfigFileDto })
+  writeFile(@Param('id', ParseUUIDPipe) id: string, @Body() body: WriteConfigFileDto): Promise<ConfigFileDto> {
+    return call(this.nats, Subjects.serversWriteFile, { id, path: body?.path, content: body?.content });
+  }
+
   @Post('servers/:id/command')
   @Allow('sendCommands')
   @ApiBody({ type: CommandDto })
@@ -241,6 +272,11 @@ export class AgentsNatsController {
   constructor(private readonly agents: AgentHub) {}
 
   // ponytail: one gateway instance; with several, route by node (e.g. subject per node)
+  @MessagePattern(Subjects.agentsRequest)
+  request(@Payload() payload: AgentsSendRequest): Promise<AgentsRequestReply> {
+    return this.agents.request(payload.nodeId, payload.message as PanelMessage & { requestId: string });
+  }
+
   @MessagePattern(Subjects.agentsSend)
   send(@Payload() payload: AgentsSendRequest): AgentsSendReply {
     return { delivered: this.agents.send(payload.nodeId, payload.message as PanelMessage) };

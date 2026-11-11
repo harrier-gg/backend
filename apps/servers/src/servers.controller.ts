@@ -11,6 +11,10 @@ import {
   type MetricPoint,
   type MetricsRange,
   ServerCommandRequestSchema,
+  ReadFileRequestSchema,
+  WriteFileRequestSchema,
+  type AgentsRequestReply,
+  type ConfigFile,
   UpdateSettingsRequestSchema,
   ServerIdSchema,
   ServerStatusSchema,
@@ -22,11 +26,12 @@ import {
   type TemplateSummary,
 } from '@harrier-gg/contracts';
 import type { PanelMessage } from '@harrier-gg/protocol';
+import { randomUUID } from 'node:crypto';
 import { firstValueFrom, timeout } from 'rxjs';
 import type { Db } from './db';
 import { DB } from './nodes.controller';
 import { createNode } from './node-token';
-import { buildSpec, validateSettings, type Settings, type TemplateCatalog } from './templates';
+import { buildSpec, knownSettings, validateSettings, type Settings, type TemplateCatalog } from './templates';
 
 export const NATS = Symbol('NATS');
 export const TEMPLATES = Symbol('TEMPLATES');
@@ -149,7 +154,7 @@ export class ServersController {
     if (!server) return fail(404, 'Server not found');
     const template = this.templates.get(server.templateId);
     if (!template) return fail(409, `The template "${server.templateId}" no longer exists`);
-    const validated = validateSettings(template, server.settings as Settings);
+    const validated = validateSettings(template, knownSettings(template, server.settings as Settings));
     if ('error' in validated) return fail(409, `Stored settings no longer match the template: ${validated.error}`);
 
     const spec = buildSpec(template, validated.settings, server.hostPort);
@@ -164,9 +169,7 @@ export class ServersController {
     if (!server) return fail(404, 'Server not found');
     const template = this.templates.get(server.templateId);
     if (!template) return fail(409, `The template "${server.templateId}" no longer exists`);
-    // Stored values first, so keys the template dropped since do not block saving.
-    const stored = Object.fromEntries(Object.entries(server.settings as Settings).filter(([k]) => template.config.some((f) => f.key === k)));
-    const validated = validateSettings(template, { ...stored, ...request.data.settings });
+    const validated = validateSettings(template, { ...knownSettings(template, server.settings as Settings), ...request.data.settings });
     if ('error' in validated) return fail(400, validated.error);
     const updated = await this.db.server.update({ where: { id: server.id }, data: { settings: validated.settings } });
     return { data: toSummary(updated) };
@@ -243,6 +246,50 @@ export class ServersController {
         players: r.players,
       })),
     };
+  }
+
+  /** Reads a config file the template lists (ADR 0011). */
+  @MessagePattern(Subjects.serversReadFile)
+  async readFile(@Payload() payload: unknown): Promise<Reply<ConfigFile>> {
+    const request = ReadFileRequestSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Invalid request: path is required');
+    const { id, path } = request.data;
+    const server = await this.findWithFile(id, path);
+    if ('error' in server) return server;
+    const reply = await this.request(server.nodeId, { type: 'readFile', requestId: randomUUID(), serverId: id, path });
+    return 'error' in reply ? reply : { data: { path, content: reply.data.content } };
+  }
+
+  /** Replaces a config file the template lists. The server reads it on its next start. */
+  @MessagePattern(Subjects.serversWriteFile)
+  async writeFile(@Payload() payload: unknown): Promise<Reply<ConfigFile>> {
+    const request = WriteFileRequestSchema.safeParse(payload);
+    if (!request.success) return fail(400, request.error.issues[0]?.message ?? 'Invalid request: path and content are required');
+    const { id, path, content } = request.data;
+    const server = await this.findWithFile(id, path);
+    if ('error' in server) return server;
+    const reply = await this.request(server.nodeId, { type: 'writeFile', requestId: randomUUID(), serverId: id, path, content });
+    return 'error' in reply ? reply : { data: { path, content } };
+  }
+
+  /** The server, if its template lists the path as an editable file. */
+  private async findWithFile(id: string, path: string): Promise<ServerRow | { error: { status: number; detail: string } }> {
+    const server = await this.find({ id });
+    if (!server) return fail(404, 'Server not found');
+    const template = this.templates.get(server.templateId);
+    if (!template?.files.some((f) => f.path === path)) return fail(404, `"${path}" is not an editable file of this server`);
+    return server;
+  }
+
+  /** Sends a file request to the server's agent and waits for its `fileResult`. */
+  private async request(nodeId: string, message: PanelMessage): Promise<Reply<{ content: string | null }>> {
+    const reply = await firstValueFrom(
+      this.nats.send<AgentsRequestReply>(Subjects.agentsRequest, { nodeId, message }).pipe(timeout(15_000)),
+    ).catch((): AgentsRequestReply => ({ delivered: false, result: null }));
+    if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
+    if (!reply.result) return fail(504, 'The agent did not answer. It may be too old for editing files; update it.');
+    if (reply.result.error) return fail(422, reply.result.error);
+    return { data: { content: reply.result.content } };
   }
 
   private async find(payload: unknown) {

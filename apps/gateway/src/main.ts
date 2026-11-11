@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Transport, type MicroserviceOptions } from '@nestjs/microservices';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AGENT_WS_PATH } from './agents/agent-hub';
@@ -10,7 +11,9 @@ import { ProblemDetailsFilter } from './problem-details.filter';
 import { VERSION } from './version';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Config files may be up to 128 KiB (ADR 0011); Express allows 100 KB by default.
+  app.useBodyParser('json', { limit: '300kb' });
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new ProblemDetailsFilter());
   app.enableShutdownHooks();

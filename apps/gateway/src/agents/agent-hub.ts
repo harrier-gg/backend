@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { Subjects, type AuthenticateNodeReply } from '@harrier-gg/contracts';
+import { Subjects, type AgentsRequestReply, type AuthenticateNodeReply } from '@harrier-gg/contracts';
 import type { AgentMessage, Hello, PanelMessage, Restart } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
@@ -16,6 +16,8 @@ const AUTH_TIMEOUT_MS = 3_000;
 const MAX_MESSAGE_BYTES = 256 * 1024;
 // ponytail: fixed cap against connection floods; per-credential limits once there are many nodes
 const MAX_AGENTS = 256;
+/** How long the gateway waits for an agent's reply to a request (ADR 0011). */
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export interface ConnectedAgent extends Hello {
   /** Node ID from the agent token (ADR 0004), not chosen by the agent. */
@@ -41,6 +43,8 @@ export function bearerToken(header: string | undefined): string | null {
 export class AgentHub implements OnApplicationShutdown {
   private readonly logger = new Logger(AgentHub.name);
   private readonly agents = new Map<string, { info: ConnectedAgent; socket: WebSocket }>();
+  /** Open requests by id; only the node they were sent to may answer. */
+  private readonly pending = new Map<string, { nodeId: string; resolve: (result: AgentsRequestReply['result']) => void }>();
   private readonly nodeOf = new WeakMap<IncomingMessage, Node>();
   readonly wss: WebSocketServer;
 
@@ -69,6 +73,28 @@ export class AgentHub implements OnApplicationShutdown {
   /** Drops a node's connection, e.g. after the node was removed and its token revoked. */
   disconnect(nodeId: string) {
     this.agents.get(nodeId)?.socket.close(4001, 'Node removed');
+  }
+
+  /**
+   * Sends a request (a panel message with `requestId`) to a node's agent and waits for the
+   * `fileResult` with the same id (ADR 0011). Only the node's own agent can answer it.
+   */
+  request(nodeId: string, message: PanelMessage & { requestId: string }): Promise<AgentsRequestReply> {
+    if (!this.send(nodeId, message)) return Promise.resolve({ delivered: false, result: null });
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(message.requestId);
+        resolve({ delivered: true, result: null });
+      }, REQUEST_TIMEOUT_MS);
+      this.pending.set(message.requestId, {
+        nodeId,
+        resolve: (result) => {
+          clearTimeout(timer);
+          this.pending.delete(message.requestId);
+          resolve({ delivered: true, result });
+        },
+      });
+    });
   }
 
   /** Delivers a panel message to a node's agent. Returns false if the node is offline. */
@@ -150,7 +176,9 @@ export class AgentHub implements OnApplicationShutdown {
     } catch {
       return;
     }
-    if (typeof message !== 'object' || message === null || typeof (message as { serverId?: unknown }).serverId !== 'string') return;
+    if (typeof message !== 'object' || message === null) return;
+    // Every message is about one server, except replies to requests.
+    if (message.type !== 'fileResult' && typeof (message as { serverId?: unknown }).serverId !== 'string') return;
 
     switch (message.type) {
       case 'consoleOutput':
@@ -169,6 +197,15 @@ export class AgentHub implements OnApplicationShutdown {
           online: Number(message.online) || 0,
           max: Number(message.max) || 0,
           names: names.filter((n): n is string => typeof n === 'string' && n.length <= 32).slice(0, 32),
+        });
+        break;
+      }
+      case 'fileResult': {
+        const pending = typeof message.requestId === 'string' ? this.pending.get(message.requestId) : undefined;
+        if (pending?.nodeId !== node.id) break;
+        pending.resolve({
+          content: typeof message.content === 'string' ? message.content : null,
+          error: typeof message.error === 'string' ? message.error.slice(0, 500) : null,
         });
         break;
       }
