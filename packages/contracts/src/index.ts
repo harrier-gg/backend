@@ -47,6 +47,8 @@ export const Subjects = {
   discordEnabled: 'identity.discord.enabled',
   discordStart: 'identity.discord.start',
   discordCallback: 'identity.discord.callback',
+  /** Discord bot → identity: the account linked to a Discord user (ADR 0014). */
+  discordUser: 'identity.discord.user',
 } as const;
 
 /**
@@ -332,6 +334,7 @@ export const DiscordStartSchema = z.discriminatedUnion('mode', [
 export type DiscordStart = z.infer<typeof DiscordStartSchema>;
 
 export const DiscordCallbackSchema = z.object({ state: z.string().max(100), code: z.string().max(500) });
+export const DiscordUserRequestSchema = z.object({ discordId: z.string().regex(/^[0-9]{5,25}$/) });
 
 /** Errors the web shows after returning from Discord (`/?auth_error=<code>`). */
 export type DiscordError = 'state' | 'not_linked' | 'taken' | 'invite' | 'email' | 'failed';

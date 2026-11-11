@@ -7,6 +7,7 @@ NestJS microservices for the Harrier panel. Only the `gateway` is reachable from
 | `apps/gateway` | REST API (`/api/v1`), API docs (`/api/docs`), WebSocket for agents (`/agent/ws`) |
 | `apps/servers` | Nodes, servers, templates. NATS only |
 | `apps/identity` | Users, sessions, first-run setup ([ADR 0006](https://github.com/harrier-gg/.github/blob/main/adr/0006-users-login-and-sessions.md)). NATS only |
+| `apps/discord` | Discord bot: `/status`, `/start`, `/stop` and online/crash messages ([ADR 0014](https://github.com/harrier-gg/.github/blob/main/adr/0014-discord-bot.md)). Off without a bot token |
 | `packages/contracts` | NATS subjects and Zod schemas shared by all services |
 | `packages/protocol` | Agent protocol types, **generated** from `../agent` (`just protocol`) |
 
@@ -45,6 +46,8 @@ Templates for games live in `templates/` (one YAML file per variant, shared part
 Configuration via `HARRIER_*` environment variables only: `HARRIER_PORT`, `HARRIER_HOST` (default `127.0.0.1` until user login exists), `HARRIER_NATS_URL`, `HARRIER_DATABASE_URL` (servers, identity; the dev database listens on port 5433), `HARRIER_PUBLIC_URL` (address users open; HTTPS makes cookies `Secure`).
 
 Discord login (ADR 0008) is enabled when `HARRIER_DISCORD_CLIENT_ID` and `HARRIER_DISCORD_CLIENT_SECRET` are set (identity service). Create an application in the [Discord developer portal](https://discord.com/developers/applications) and add the redirect `<HARRIER_PUBLIC_URL>/api/v1/auth/discord/callback`.
+
+The Discord bot (ADR 0014) runs when `HARRIER_DISCORD_BOT_TOKEN` is set (discord service): in the same application, open **Bot**, reset the token and copy it. On start the service logs an invite link; open it to add the bot to your Discord server. Commands work for members whose Discord account is linked in the panel. For "online" and "crashed" messages, set `HARRIER_DISCORD_CHANNEL_ID` (in Discord: *Settings → Advanced → Developer Mode*, then right-click the channel → *Copy Channel ID*).
 
 The API speaks English only; errors use [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details, and the web panel translates them (see ADR 0003).
 

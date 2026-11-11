@@ -3,7 +3,9 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import {
   DiscordCallbackSchema,
   DiscordStartSchema,
+  DiscordUserRequestSchema,
   Subjects,
+  type UserSummary,
   type DiscordResult,
   type DiscordStart,
   type Reply,
@@ -12,7 +14,7 @@ import { config } from './config';
 import { hashToken, newToken } from './crypto';
 import type { Db } from './db';
 import { Prisma } from './generated/prisma/client';
-import { createSession, DB, fail } from './identity.controller';
+import { createSession, DB, fail, toUser } from './identity.controller';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -35,6 +37,14 @@ export class DiscordController {
   private readonly pending = new Map<string, DiscordStart & { expiresAt: number }>();
 
   constructor(@Inject(DB) private readonly db: Db) {}
+
+  /** The account a Discord user linked, for the bot (ADR 0014). */
+  @MessagePattern(Subjects.discordUser)
+  async userByDiscord(@Payload() payload: unknown): Promise<Reply<UserSummary>> {
+    const request = DiscordUserRequestSchema.safeParse(payload);
+    const user = request.success ? await this.db.user.findUnique({ where: { discordId: request.data.discordId } }) : null;
+    return user ? { data: toUser(user) } : fail(404, 'No account is linked to this Discord user');
+  }
 
   @MessagePattern(Subjects.discordEnabled)
   enabled(): Reply<{ enabled: boolean }> {
