@@ -19,6 +19,10 @@ export const Subjects = {
   serversCommand: 'servers.command',
   serversUpdateSettings: 'servers.settings',
   serversReadFile: 'servers.files.read',
+  serversListDir: 'servers.files.list',
+  serversDeletePath: 'servers.files.delete',
+  serversMakeDir: 'servers.files.mkdir',
+  serversMovePath: 'servers.files.move',
   serversWriteFile: 'servers.files.write',
   /** Graph data of one server (ADR 0009). */
   serversMetrics: 'servers.metrics',
@@ -159,7 +163,16 @@ export const ServerIdSchema = z.object({ id: z.string().uuid() });
 
 /** Config files (ADR 0011): at most 128 KiB, so the text fits one agent message. */
 export const FILE_MAX_BYTES = 128 * 1024;
-export const ReadFileRequestSchema = ServerIdSchema.extend({ path: z.string().min(1).max(256) });
+/** A path inside a server's data directory, like `world/level.dat`. The agent checks it again. */
+export const FilePathSchema = z
+  .string()
+  .min(1)
+  .max(1024)
+  .refine((p) => p.split('/').every((part) => part !== '' && part !== '.' && part !== '..'), 'Invalid path');
+export const ReadFileRequestSchema = ServerIdSchema.extend({ path: FilePathSchema });
+/** `path` "" is the data directory itself. */
+export const ListDirRequestSchema = ServerIdSchema.extend({ path: z.union([z.literal(''), FilePathSchema]) });
+export const MovePathRequestSchema = ServerIdSchema.extend({ from: FilePathSchema, to: FilePathSchema });
 export const WriteFileRequestSchema = ReadFileRequestSchema.extend({
   content: z.string().refine((s) => Buffer.byteLength(s) <= FILE_MAX_BYTES, 'The file is larger than 128 KiB'),
 });
@@ -185,7 +198,16 @@ export interface AgentsSendRequest {
 /** Reply to `agents.request`: the agent's `fileResult`, or null if it is offline or did not answer. */
 export interface AgentsRequestReply {
   delivered: boolean;
-  result: { content: string | null; error: string | null } | null;
+  result: { content: string | null; error: string | null; entries: FileEntry[] | null } | null;
+}
+
+/** One entry of a directory listing (ADR 0015). */
+export interface FileEntry {
+  name: string;
+  kind: 'file' | 'dir' | 'other';
+  size: number;
+  /** Last change, seconds since 1970. */
+  modified: number | null;
 }
 export interface AgentsSendReply {
   delivered: boolean;

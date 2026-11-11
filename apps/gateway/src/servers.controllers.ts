@@ -139,8 +139,11 @@ class CommandDto {
 }
 
 /** Calls the servers service and turns `{ error }` replies into problem details (RFC 9457). */
-async function call<T>(nats: ClientProxy, subject: string, payload: unknown): Promise<T> {
-  const reply = await firstValueFrom(nats.send<Reply<T>>(subject, payload).pipe(timeout(5000))).catch(() => {
+export const AGENT_MS = 20_000;
+
+/** `ms`: requests that reach an agent wait longer (the servers service gives it 15 s). */
+export async function call<T>(nats: ClientProxy, subject: string, payload: unknown, ms = 5000): Promise<T> {
+  const reply = await firstValueFrom(nats.send<Reply<T>>(subject, payload).pipe(timeout(ms))).catch(() => {
     throw new HttpException('The servers service is unavailable', 503);
   });
   if ('error' in reply) throw new HttpException(reply.error.detail, reply.error.status);
@@ -264,7 +267,7 @@ export class ServersController {
   @ApiQuery({ name: 'path', example: 'server.properties' })
   @ApiOkResponse({ type: ConfigFileDto })
   readFile(@Param('id', ParseUUIDPipe) id: string, @Query('path') path: string): Promise<ConfigFileDto> {
-    return call(this.nats, Subjects.serversReadFile, { id, path });
+    return call(this.nats, Subjects.serversReadFile, { id, path }, AGENT_MS);
   }
 
   /** Replaces a config file the template lists. The server reads it on its next start. */
@@ -273,7 +276,7 @@ export class ServersController {
   @ApiBody({ type: WriteConfigFileDto })
   @ApiOkResponse({ type: ConfigFileDto })
   writeFile(@Param('id', ParseUUIDPipe) id: string, @Body() body: WriteConfigFileDto): Promise<ConfigFileDto> {
-    return call(this.nats, Subjects.serversWriteFile, { id, path: body?.path, content: body?.content });
+    return call(this.nats, Subjects.serversWriteFile, { id, path: body?.path, content: body?.content }, AGENT_MS);
   }
 
   @Post('servers/:id/command')

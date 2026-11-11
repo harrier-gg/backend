@@ -12,6 +12,9 @@ import {
   type MetricsRange,
   ServerCommandRequestSchema,
   ReadFileRequestSchema,
+  ListDirRequestSchema,
+  MovePathRequestSchema,
+  type FileEntry,
   WriteFileRequestSchema,
   type AgentsRequestReply,
   type ConfigFile,
@@ -268,48 +271,82 @@ export class ServersController {
     };
   }
 
-  /** Reads a config file the template lists (ADR 0011). */
+  /** Lists a directory of the server (ADR 0015). */
+  @MessagePattern(Subjects.serversListDir)
+  async listDir(@Payload() payload: unknown): Promise<Reply<FileEntry[]>> {
+    const request = ListDirRequestSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Invalid path');
+    const { id, path } = request.data;
+    const server = await this.find({ id });
+    if (!server) return fail(404, 'Server not found');
+    const reply = await this.request(server.nodeId, { type: 'listDir', requestId: randomUUID(), serverId: id, path });
+    return 'error' in reply ? reply : { data: reply.data.entries ?? [] };
+  }
+
+  @MessagePattern(Subjects.serversDeletePath)
+  async deletePath(@Payload() payload: unknown): Promise<Reply<{ ok: true }>> {
+    return this.pathOperation(payload, 'deletePath');
+  }
+
+  @MessagePattern(Subjects.serversMakeDir)
+  async makeDir(@Payload() payload: unknown): Promise<Reply<{ ok: true }>> {
+    return this.pathOperation(payload, 'makeDir');
+  }
+
+  @MessagePattern(Subjects.serversMovePath)
+  async movePath(@Payload() payload: unknown): Promise<Reply<{ ok: true }>> {
+    const request = MovePathRequestSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Invalid path');
+    const { id, from, to } = request.data;
+    const server = await this.find({ id });
+    if (!server) return fail(404, 'Server not found');
+    const reply = await this.request(server.nodeId, { type: 'movePath', requestId: randomUUID(), serverId: id, from, to });
+    return 'error' in reply ? reply : { data: { ok: true } };
+  }
+
+  private async pathOperation(payload: unknown, type: 'deletePath' | 'makeDir'): Promise<Reply<{ ok: true }>> {
+    const request = ReadFileRequestSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Invalid path');
+    const { id, path } = request.data;
+    const server = await this.find({ id });
+    if (!server) return fail(404, 'Server not found');
+    const reply = await this.request(server.nodeId, { type, requestId: randomUUID(), serverId: id, path });
+    return 'error' in reply ? reply : { data: { ok: true } };
+  }
+
+  /** Reads a text file of the server, e.g. a config the template lists (ADR 0011, 0015). */
   @MessagePattern(Subjects.serversReadFile)
   async readFile(@Payload() payload: unknown): Promise<Reply<ConfigFile>> {
     const request = ReadFileRequestSchema.safeParse(payload);
     if (!request.success) return fail(400, 'Invalid request: path is required');
     const { id, path } = request.data;
-    const server = await this.findWithFile(id, path);
-    if ('error' in server) return server;
+    const server = await this.find({ id });
+    if (!server) return fail(404, 'Server not found');
     const reply = await this.request(server.nodeId, { type: 'readFile', requestId: randomUUID(), serverId: id, path });
     return 'error' in reply ? reply : { data: { path, content: reply.data.content } };
   }
 
-  /** Replaces a config file the template lists. The server reads it on its next start. */
+  /** Replaces a text file of the server. A running game may overwrite it. */
   @MessagePattern(Subjects.serversWriteFile)
   async writeFile(@Payload() payload: unknown): Promise<Reply<ConfigFile>> {
     const request = WriteFileRequestSchema.safeParse(payload);
     if (!request.success) return fail(400, request.error.issues[0]?.message ?? 'Invalid request: path and content are required');
     const { id, path, content } = request.data;
-    const server = await this.findWithFile(id, path);
-    if ('error' in server) return server;
+    const server = await this.find({ id });
+    if (!server) return fail(404, 'Server not found');
     const reply = await this.request(server.nodeId, { type: 'writeFile', requestId: randomUUID(), serverId: id, path, content });
     return 'error' in reply ? reply : { data: { path, content } };
   }
 
-  /** The server, if its template lists the path as an editable file. */
-  private async findWithFile(id: string, path: string): Promise<ServerRow | { error: { status: number; detail: string } }> {
-    const server = await this.find({ id });
-    if (!server) return fail(404, 'Server not found');
-    const template = this.templates.get(server.templateId);
-    if (!template?.files.some((f) => f.path === path)) return fail(404, `"${path}" is not an editable file of this server`);
-    return server;
-  }
-
   /** Sends a file request to the server's agent and waits for its `fileResult`. */
-  private async request(nodeId: string, message: PanelMessage): Promise<Reply<{ content: string | null }>> {
+  private async request(nodeId: string, message: PanelMessage): Promise<Reply<{ content: string | null; entries: FileEntry[] | null }>> {
     const reply = await firstValueFrom(
       this.nats.send<AgentsRequestReply>(Subjects.agentsRequest, { nodeId, message }).pipe(timeout(15_000)),
     ).catch((): AgentsRequestReply => ({ delivered: false, result: null }));
     if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
     if (!reply.result) return fail(504, 'The agent did not answer. It may be too old for editing files; update it.');
     if (reply.result.error) return fail(422, reply.result.error);
-    return { data: { content: reply.result.content } };
+    return { data: { content: reply.result.content, entries: reply.result.entries } };
   }
 
   private async find(payload: unknown) {
