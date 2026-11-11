@@ -74,6 +74,16 @@ const Template = z.object({
     players: z.object({ protocol: z.enum(['minecraft']) }).optional(),
     // How players wake a sleeping server by connecting (ADR 0013); needs `players`.
     sleep: z.object({ wake: z.enum(['minecraft']) }).optional(),
+    // Console commands for a consistent backup of a running server (ADR 0016).
+    // `exclude`: top-level entries left out (downloaded server files), a name or `*.jar`.
+    backup: z
+      .object({
+        before: z.array(z.string()).default([]),
+        ready: z.string().optional(),
+        after: z.array(z.string()).default([]),
+        exclude: z.array(z.string().regex(/^\*?[A-Za-z0-9._-]+$/)).default([]),
+      })
+      .optional(),
   }),
 });
 export type Template = z.infer<typeof Template>;

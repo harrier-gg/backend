@@ -222,7 +222,8 @@ export class ServersController {
     const { nodeId, message } = event.data;
     const updated = await this.db.server.updateMany({
       where: { id: message.serverId, nodeId },
-      data: { status: message.status, statusMessage: message.message ?? null },
+      // A server that runs has changes a scheduled backup should catch (ADR 0016).
+      data: { status: message.status, statusMessage: message.message ?? null, ...(message.status === 'running' ? { activeSinceBackup: true } : {}) },
     });
     if (updated.count === 0) this.logger.warn(`Ignoring status for unknown server ${message.serverId} from node ${nodeId}`);
   }

@@ -15,13 +15,13 @@ import { AgentsNatsController, NodesController, ServersController, TemplatesCont
 import { SameOriginMiddleware } from './same-origin.middleware';
 import { WsRouter } from './ws-router';
 import { TransferHub } from './agents/transfer-hub';
-import { FilesController } from './files.controller';
+import { BackupsController, FilesController } from './files.controller';
 import { ContractRef } from './openapi';
 
 const config = loadConfig();
 
 @Module({
-  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController],
+  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController, BackupsController],
   providers: [
     AgentHub,
     TransferHub,

@@ -40,6 +40,13 @@ model Server {
   status        String   @default("stopped")
   statusMessage String?  @map("status_message")
   createdAt     DateTime @default(now()) @map("created_at")
+  /// Backup schedule (ADR 0016): every N hours (0 = only by hand), keep the newest M.
+  backupEveryHours  Int       @default(24) @map("backup_every_hours")
+  backupKeep        Int       @default(7) @map("backup_keep")
+  lastBackupAt      DateTime? @map("last_backup_at")
+  /// Ran since its last backup; only such servers are due, so a stopped server does not
+  /// replace older backups with copies of the same state.
+  activeSinceBackup Boolean   @default(false) @map("active_since_backup")
   metrics       ServerMetric[]
 
   @@unique([nodeId, hostPort])

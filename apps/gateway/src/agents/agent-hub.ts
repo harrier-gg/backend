@@ -211,6 +211,10 @@ export class AgentHub implements OnApplicationShutdown {
         });
         break;
       }
+      case 'backupResult':
+        // The servers service validates it and only updates servers of this node (ADR 0016).
+        this.nats.emit(Subjects.agentsBackup, { nodeId: node.id, message });
+        break;
       case 'serverState':
         this.consoles.status(node.id, message.serverId, message.status, message.message ?? null, restartOf(message.restart));
         // The servers service validates the payload and only updates servers of this node.
