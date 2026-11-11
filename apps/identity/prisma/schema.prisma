@@ -24,8 +24,11 @@ model User {
   /// Stored in lower case; unique.
   email        String    @unique
   name         String
-  /// "scrypt$N$r$p$salt$hash" (ADR 0006)
-  passwordHash String    @map("password_hash")
+  /// "scrypt$N$r$p$salt$hash" (ADR 0006); null for accounts that only log in with Discord (ADR 0008)
+  passwordHash String?   @map("password_hash")
+  /// Linked Discord account (ADR 0008)
+  discordId    String?   @unique @map("discord_id")
+  discordName  String?   @map("discord_name")
   role         Role      @default(member)
   createdAt    DateTime  @default(now()) @map("created_at")
   sessions     Session[]

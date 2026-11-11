@@ -7,6 +7,7 @@ import { config } from './config';
 import { createDb } from './db';
 import { DB, IdentityController, SetupToken } from './identity.controller';
 import { InvitesController } from './invites.controller';
+import { DiscordController } from './discord.controller';
 import { VERSION } from './version';
 
 @Controller()
@@ -18,7 +19,7 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, IdentityController, InvitesController],
+  controllers: [HealthController, IdentityController, InvitesController, DiscordController],
   providers: [{ provide: DB, useFactory: createDb }, SetupToken],
 })
 class AppModule {}

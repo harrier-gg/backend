@@ -24,11 +24,12 @@ const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 export const fail = (status: number, detail: string) => ({ error: { status, detail } });
-export const toUser = (u: { id: string; email: string; name: string; role: UserSummary['role'] }): UserSummary => ({
+export const toUser = (u: { id: string; email: string; name: string; role: UserSummary['role']; discordName: string | null }): UserSummary => ({
   id: u.id,
   email: u.email,
   name: u.name,
   role: u.role,
+  discord: u.discordName,
 });
 
 /** Holds the one-time setup token while no user exists (ADR 0006). */
@@ -106,7 +107,8 @@ export class IdentityController {
     const user = await this.db.user.findUnique({ where: { email } });
     // Without a user, still spend the same time on hashing, so response times do not reveal
     // which e-mail addresses exist.
-    const ok = user ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
+    // Accounts without a password (Discord only, ADR 0008) cannot log in with one.
+    const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
     if (!user || !ok) {
       const current = attempts && attempts.resetAt > Date.now() ? attempts : { count: 0, resetAt: Date.now() + LOGIN_WINDOW_MS };
       this.failedLogins.set(email, { ...current, count: current.count + 1 });

@@ -44,6 +44,8 @@ Templates for games live in `templates/` (one YAML file per variant, shared part
 
 Configuration via `HARRIER_*` environment variables only: `HARRIER_PORT`, `HARRIER_HOST` (default `127.0.0.1` until user login exists), `HARRIER_NATS_URL`, `HARRIER_DATABASE_URL` (servers, identity; the dev database listens on port 5433), `HARRIER_PUBLIC_URL` (address users open; HTTPS makes cookies `Secure`).
 
+Discord login (ADR 0008) is enabled when `HARRIER_DISCORD_CLIENT_ID` and `HARRIER_DISCORD_CLIENT_SECRET` are set (identity service). Create an application in the [Discord developer portal](https://discord.com/developers/applications) and add the redirect `<HARRIER_PUBLIC_URL>/api/v1/auth/discord/callback`.
+
 The API speaks English only; errors use [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details, and the web panel translates them (see ADR 0003).
 
 See the [contributing guide](https://github.com/harrier-gg/.github/blob/main/CONTRIBUTING.md) for branches, PRs and releases.

@@ -14,6 +14,7 @@ export class UserEntryDto implements UserListEntry {
   @ApiProperty() name!: string;
   @ApiProperty({ enum: ROLES }) role!: Role;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: String, nullable: true, description: 'Display name of the linked Discord account' }) discord!: string | null;
 }
 
 class InviteDto implements InviteSummary {

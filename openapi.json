@@ -178,6 +178,27 @@
         ]
       }
     },
+    "/auth/providers": {
+      "get": {
+        "operationId": "discordProviders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvidersDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/users": {
       "get": {
         "operationId": "usersList",
@@ -759,13 +780,19 @@
               "admin",
               "member"
             ]
+          },
+          "discord": {
+            "type": "string",
+            "nullable": true,
+            "description": "Display name of the linked Discord account"
           }
         },
         "required": [
           "id",
           "email",
           "name",
-          "role"
+          "role",
+          "discord"
         ]
       },
       "LoginDto": {
@@ -803,6 +830,11 @@
               "member"
             ]
           },
+          "discord": {
+            "type": "string",
+            "nullable": true,
+            "description": "Display name of the linked Discord account"
+          },
           "permissions": {
             "type": "array",
             "description": "What this user may do (ADR 0007); the web hides the rest",
@@ -824,6 +856,7 @@
           "email",
           "name",
           "role",
+          "discord",
           "permissions"
         ]
       },
@@ -867,6 +900,18 @@
           "password"
         ]
       },
+      "ProvidersDto": {
+        "type": "object",
+        "properties": {
+          "discord": {
+            "type": "boolean",
+            "description": "Whether \"Log in with Discord\" is configured (ADR 0008)"
+          }
+        },
+        "required": [
+          "discord"
+        ]
+      },
       "UserEntryDto": {
         "type": "object",
         "properties": {
@@ -890,6 +935,11 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "discord": {
+            "type": "string",
+            "nullable": true,
+            "description": "Display name of the linked Discord account"
           }
         },
         "required": [
@@ -897,7 +947,8 @@
           "email",
           "name",
           "role",
-          "createdAt"
+          "createdAt",
+          "discord"
         ]
       },
       "UpdateRoleDto": {

@@ -6,6 +6,12 @@ const ConfigSchema = z.object({
   HARRIER_DATABASE_URL: z.string().default('postgresql://harrier:harrier@localhost:5433/harrier'),
   /** Address users open in the browser; used for the setup link. */
   HARRIER_PUBLIC_URL: z.string().url().default('http://localhost:5173'),
+  /** Discord login (ADR 0008); off unless both are set. */
+  HARRIER_DISCORD_CLIENT_ID: z.string().optional(),
+  HARRIER_DISCORD_CLIENT_SECRET: z.string().optional(),
+  /** Only changed for tests against a local mock. */
+  HARRIER_DISCORD_API_URL: z.string().url().default('https://discord.com/api'),
+  HARRIER_DISCORD_AUTHORIZE_URL: z.string().url().default('https://discord.com/oauth2/authorize'),
 });
 
 export const config = (() => {
