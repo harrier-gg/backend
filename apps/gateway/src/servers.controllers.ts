@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
 import { ApiBody, ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
@@ -27,14 +27,20 @@ class LocalizedTextDto {
   @ApiPropertyOptional() de?: string;
 }
 
+class SelectOptionDto {
+  @ApiProperty() value!: string;
+  @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
+}
+
 class TemplateConfigFieldDto implements TemplateConfigField {
   @ApiProperty() key!: string;
   @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
-  @ApiProperty({ enum: ['string', 'integer'] }) type!: 'string' | 'integer';
-  @ApiProperty({ oneOf: [{ type: 'string' }, { type: 'number' }] }) default!: string | number;
+  @ApiProperty({ enum: ['string', 'integer', 'boolean', 'select'] }) type!: 'string' | 'integer' | 'boolean' | 'select';
+  @ApiProperty({ oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] }) default!: string | number | boolean;
   @ApiPropertyOptional() min?: number;
   @ApiPropertyOptional() max?: number;
   @ApiPropertyOptional() pattern?: string;
+  @ApiPropertyOptional({ type: [SelectOptionDto], description: 'Choices of a select field' }) options?: SelectOptionDto[];
 }
 
 class NamedDto {
@@ -74,8 +80,8 @@ class ServerDto implements ServerSummary {
   @ApiProperty() name!: string;
   @ApiProperty() nodeId!: string;
   @ApiProperty() templateId!: string;
-  @ApiProperty({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] } })
-  settings!: Record<string, string | number>;
+  @ApiProperty({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] } })
+  settings!: Record<string, string | number | boolean>;
   @ApiProperty({ description: 'Port players connect to on the node' }) hostPort!: number;
   @ApiProperty({ enum: STATUSES }) status!: ServerStatus;
   @ApiProperty({ type: String, nullable: true }) statusMessage!: string | null;
@@ -86,8 +92,13 @@ class CreateServerDto {
   @ApiProperty() nodeId!: string;
   @ApiProperty({ example: 'Survival' }) name!: string;
   @ApiProperty({ example: 'minecraft-java/paper' }) templateId!: string;
-  @ApiPropertyOptional({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] } })
-  settings?: Record<string, string | number>;
+  @ApiPropertyOptional({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] } })
+  settings?: Record<string, string | number | boolean>;
+}
+
+class SettingsDto {
+  @ApiProperty({ ...{ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] } }, description: 'Changed settings; keys left out keep their value' })
+  settings!: Record<string, string | number | boolean>;
 }
 
 class MetricPointDto implements MetricPoint {
@@ -203,6 +214,15 @@ export class ServersController {
   @HttpCode(200)
   stop(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
     return call(this.nats, Subjects.serversStop, { id });
+  }
+
+  /** Settings apply on the next start (a running server keeps its current ones). */
+  @Put('servers/:id/settings')
+  @Allow('manageServers')
+  @ApiBody({ type: SettingsDto })
+  @ApiOkResponse({ type: ServerDto })
+  updateSettings(@Param('id', ParseUUIDPipe) id: string, @Body() body: SettingsDto): Promise<ServerDto> {
+    return call(this.nats, Subjects.serversUpdateSettings, { id, settings: body?.settings });
   }
 
   @Post('servers/:id/command')

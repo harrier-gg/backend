@@ -20,21 +20,36 @@ test('variants inherit from their base and override only what differs', () => {
 
 test('settings get defaults and are checked against the template', () => {
   const paper = catalog.get('minecraft-java/paper')!;
-  assert.deepEqual(validateSettings(paper, {}), { settings: { version: 'LATEST', memory: 2048, motd: 'A Harrier server' } });
+  assert.deepEqual(validateSettings(paper, {}), {
+    settings: { version: 'LATEST', memory: 2048, motd: 'A Harrier server', gamemode: 'survival', difficulty: 'easy', maxPlayers: 20, pvp: true },
+  });
   assert.ok('error' in validateSettings(paper, { memory: 512 }));
   assert.ok('error' in validateSettings(paper, { version: '1.21; rm -rf /' }));
   assert.ok('error' in validateSettings(paper, { motd: 'two\nlines' }));
   assert.ok('error' in validateSettings(paper, { unknown: 'x' }));
+  assert.ok('error' in validateSettings(paper, { memory: '4096' }), 'values are not converted');
+  assert.ok('error' in validateSettings(paper, { gamemode: 'god' }), 'select only takes its options');
+  assert.ok('error' in validateSettings(paper, { pvp: 'false' }), 'booleans are true or false');
+});
+
+test('field definitions are checked when templates load', () => {
+  const base = { schemaVersion: 1 as const, id: 'g/v', abstract: false, game: { id: 'g', name: 'G' }, variant: { id: 'v', name: 'V' } };
+  const field = (f: object) => new TemplateCatalog([{ ...base, config: [{ key: 'x', label: { en: 'X' }, ...f } as never] }]);
+  assert.throws(() => field({ type: 'select', default: 'a' }), /needs options/);
+  assert.throws(() => field({ type: 'select', default: 'c', options: [{ value: 'a', label: { en: 'A' } }] }), /default does not fit/);
+  assert.throws(() => field({ type: 'integer', default: 5, min: 10 }), /default does not fit/);
 });
 
 test('the runtime spec is game-neutral and carries env, limits and ports', () => {
   const paper = catalog.get('minecraft-java/paper')!;
-  const result = validateSettings(paper, { version: '1.21.4', memory: 4096 });
+  const result = validateSettings(paper, { version: '1.21.4', memory: 4096, pvp: false, difficulty: 'hard' });
   assert.ok('settings' in result);
   const spec = buildSpec(paper, result.settings, 25566);
   assert.equal(spec.env.VERSION, '1.21.4');
   assert.equal(spec.env.TYPE, 'PAPER');
   assert.equal(spec.memoryMb, 4096);
+  assert.equal(spec.env.PVP, 'false');
+  assert.equal(spec.env.DIFFICULTY, 'hard');
   assert.deepEqual(spec.ports, [{ containerPort: 25565, hostPort: 25566, protocol: 'tcp' }]);
   assert.deepEqual(spec.query, { protocol: 'minecraft', port: 25566 });
   assert.ok(spec.readyPattern && new RegExp(spec.readyPattern).test('[Server thread/INFO]: Done (3.2s)! For help, type "help"'));
