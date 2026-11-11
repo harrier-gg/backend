@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: harrier
       POSTGRES_DB: harrier
     ports:
-      - "5432:5432"
+      - "5433:5432" # 5433 on the host, so a local Postgres on 5432 does not get in the way
     volumes:
       - postgres:/var/lib/postgresql/data
     healthcheck:

@@ -136,7 +136,12 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Node ID (from the agent token)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Node name given at registration"
           },
           "hostname": {
             "type": "string"
@@ -160,6 +165,7 @@
         },
         "required": [
           "id",
+          "name",
           "hostname",
           "os",
           "arch",

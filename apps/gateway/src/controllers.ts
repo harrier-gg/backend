@@ -5,9 +5,8 @@ import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { firstValueFrom, timeout } from 'rxjs';
 import { AgentHub } from './agents/agent-hub';
 import { ContractRef } from './openapi';
+import { NATS } from './nats';
 import { VERSION } from './version';
-
-export const NATS = Symbol('NATS');
 
 class HealthDto {
   @ApiProperty({ enum: ['ok', 'degraded'] }) status!: 'ok' | 'degraded';
@@ -23,7 +22,8 @@ class MetaDto {
 }
 
 class AgentDto {
-  @ApiProperty() id!: string;
+  @ApiProperty({ description: 'Node ID (from the agent token)' }) id!: string;
+  @ApiProperty({ description: 'Node name given at registration' }) name!: string;
   @ApiProperty() hostname!: string;
   @ApiProperty() os!: string;
   @ApiProperty() arch!: string;

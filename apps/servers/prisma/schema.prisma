@@ -1,0 +1,25 @@
+// Data owned by the servers service. Other services never read these tables (ADR 0001).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["servers"]
+}
+
+/// A machine that runs an agent (ADR 0004).
+model Node {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  name       String    @unique
+  /// SHA-256 of the token secret. The token itself is never stored.
+  tokenHash  Bytes     @map("token_hash")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime? @map("last_seen_at")
+
+  @@map("nodes")
+  @@schema("servers")
+}

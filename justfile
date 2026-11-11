@@ -16,9 +16,22 @@ up:
 down:
     docker compose -f compose.dev.yaml down
 
-# Infrastructure + all services in watch mode
-dev: up
+# Infrastructure + database migrations + all services in watch mode
+dev: up migrate
     npm run dev
+
+# Apply database migrations
+migrate:
+    npm run migrate --workspace @harrier-gg/servers
+
+# Create a migration after changing a prisma/schema.prisma (the migration is committed)
+migration name:
+    npm run migrate:dev --workspace @harrier-gg/servers -- --name {{name}}
+
+# Register a node and print its agent token once (ADR 0004)
+node-create name:
+    npm run build --workspace @harrier-gg/contracts --workspace @harrier-gg/servers
+    npm run node:create --workspace @harrier-gg/servers -- --name {{name}}
 
 # Regenerate openapi.json (after every API change; the file is committed)
 api:
