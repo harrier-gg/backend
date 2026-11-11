@@ -5,6 +5,7 @@ import type { ServerStats } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
+import { Sessions } from './auth/session';
 import { NATS } from './nats';
 
 /** Browser WebSocket for one server's live console: `/api/v1/servers/<id>/console`. */
@@ -16,6 +17,8 @@ const BUFFER_BYTES = 64 * 1024;
 // ponytail: fixed cap; verify server IDs against the servers service if nodes get this many servers
 const MAX_CHANNELS_PER_NODE = 128;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// Open consoles re-check their session this often, so removed users stop watching soon.
+const SESSION_RECHECK_MS = 60_000;
 
 interface Channel {
   output: string;
@@ -42,8 +45,11 @@ export class ConsoleHub {
   private readonly perNode = new Map<string, number>();
   readonly wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
 
-  constructor(@Inject(NATS) private readonly nats: ClientProxy) {
-    this.wss.on('connection', (socket: WebSocket, req: IncomingMessage, user: UserSummary) => void this.accept(socket, req, user));
+  constructor(
+    @Inject(NATS) private readonly nats: ClientProxy,
+    private readonly sessions: Sessions,
+  ) {
+    this.wss.on('connection', (socket: WebSocket, req: IncomingMessage) => void this.accept(socket, req));
   }
 
   private channel(nodeId: string, serverId: string): Channel | null {
@@ -99,7 +105,17 @@ export class ConsoleHub {
     }
   }
 
-  private async accept(socket: WebSocket, req: IncomingMessage, user: UserSummary) {
+  /**
+   * The current user behind an open console. Read fresh from the identity service (not cached from
+   * the upgrade), so a demoted or removed user loses access right away (ADR 0007).
+   */
+  private async currentUser(req: IncomingMessage, socket: WebSocket): Promise<UserSummary | null> {
+    const session = await this.sessions.fromRequest(req);
+    if (!session) socket.close(4401, 'Session ended');
+    return session?.user ?? null;
+  }
+
+  private async accept(socket: WebSocket, req: IncomingMessage) {
     const serverId = CONSOLE_WS_PATH.exec(new URL(req.url ?? '', 'http://x').pathname)?.[1];
     const reply = await firstValueFrom(
       this.nats.send<Reply<ServerSummary>>(Subjects.serversGet, { id: serverId }).pipe(timeout(3000)),
@@ -125,9 +141,9 @@ export class ConsoleHub {
       } satisfies ConsoleEvent),
     );
 
-    socket.on('message', (raw) => {
-      // Everyone may watch; only roles with "sendCommands" may type (ADR 0007).
-      if (!can(user.role, 'sendCommands')) return;
+    const recheck = setInterval(() => void this.currentUser(req, socket), SESSION_RECHECK_MS);
+
+    socket.on('message', async (raw) => {
       let command: unknown;
       try {
         command = (JSON.parse(raw.toString()) as { type?: string; command?: unknown }).command;
@@ -135,10 +151,16 @@ export class ConsoleHub {
         return;
       }
       if (typeof command !== 'string') return;
+      // Everyone may watch; only roles with "sendCommands" may type (ADR 0007). Checked per command.
+      const user = await this.currentUser(req, socket);
+      if (!user || !can(user.role, 'sendCommands')) return;
       void firstValueFrom(this.nats.send(Subjects.serversCommand, { id: server.id, command }).pipe(timeout(3000))).catch(
         (error: unknown) => this.logger.warn(`Console command for ${server.id} failed: ${String(error)}`),
       );
     });
-    socket.on('close', () => channel.browsers.delete(socket));
+    socket.on('close', () => {
+      clearInterval(recheck);
+      channel.browsers.delete(socket);
+    });
   }
 }
