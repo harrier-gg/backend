@@ -24,6 +24,14 @@ export const Subjects = {
   identityLogin: 'identity.login',
   identityLogout: 'identity.logout',
   identitySession: 'identity.session',
+  invitesCreate: 'identity.invites.create',
+  invitesList: 'identity.invites.list',
+  invitesRevoke: 'identity.invites.revoke',
+  invitesCheck: 'identity.invites.check',
+  invitesAccept: 'identity.invites.accept',
+  usersList: 'identity.users.list',
+  usersUpdateRole: 'identity.users.updateRole',
+  usersRemove: 'identity.users.remove',
 } as const;
 
 /**
@@ -171,3 +179,55 @@ export const LoginRequestSchema = z.object({
 });
 
 export const SessionTokenSchema = z.object({ sessionToken: z.string().max(100) });
+
+// ---- Roles and invitations (ADR 0007) ----
+
+/** Who acts. The identity service loads the role itself instead of trusting it. */
+export const ActorSchema = z.object({ actorId: z.string().uuid() });
+
+export interface InviteSummary {
+  id: string;
+  role: Role;
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** Only returned once, right after creating: the link contains the token. */
+export interface InviteCreated {
+  invite: InviteSummary;
+  url: string;
+}
+
+export interface UserListEntry extends UserSummary {
+  createdAt: string;
+}
+
+export const CreateInviteSchema = ActorSchema.extend({ role: z.enum(['admin', 'member']) });
+export const InviteIdSchema = ActorSchema.extend({ id: z.string().uuid() });
+export const InviteTokenSchema = z.object({ token: z.string().max(100) });
+export const AcceptInviteSchema = z.object({
+  token: z.string().max(100),
+  name: z.string().trim().min(1).max(64),
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(10).max(256),
+});
+export const UpdateRoleSchema = ActorSchema.extend({ userId: z.string().uuid(), role: z.enum(['admin', 'member']) });
+export const RemoveUserSchema = ActorSchema.extend({ userId: z.string().uuid() });
+
+/**
+ * What a role may do (ADR 0007). Shared by gateway and identity service, so both check the same rules.
+ */
+export const Permissions = {
+  viewServers: ['member', 'admin', 'owner'],
+  startStopServers: ['member', 'admin', 'owner'],
+  sendCommands: ['admin', 'owner'],
+  manageServers: ['admin', 'owner'],
+  manageMembers: ['admin', 'owner'],
+  manageAdmins: ['owner'],
+} as const satisfies Record<string, readonly Role[]>;
+export type Permission = keyof typeof Permissions;
+
+export function can(role: Role, permission: Permission): boolean {
+  return (Permissions[permission] as readonly Role[]).includes(role);
+}
