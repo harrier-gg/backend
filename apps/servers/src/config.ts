@@ -4,6 +4,7 @@ const ConfigSchema = z.object({
   HARRIER_NATS_URL: z.string().url().default('nats://localhost:4222'),
   // Default only for local development (compose.dev.yaml).
   HARRIER_DATABASE_URL: z.string().default('postgresql://harrier:harrier@localhost:5433/harrier'),
+  HARRIER_TEMPLATES_DIR: z.string().optional(),
 });
 
 export const config = (() => {

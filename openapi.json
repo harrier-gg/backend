@@ -66,6 +66,237 @@
           "agents"
         ]
       }
+    },
+    "/servers": {
+      "get": {
+        "operationId": "serversList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServerDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      },
+      "post": {
+        "operationId": "serversCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/servers/{id}": {
+      "get": {
+        "operationId": "serversGet",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/servers/{id}/start": {
+      "post": {
+        "operationId": "serversStart",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/servers/{id}/stop": {
+      "post": {
+        "operationId": "serversStop",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/servers/{id}/command": {
+      "post": {
+        "operationId": "serversCommand",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/templates": {
+      "get": {
+        "operationId": "templatesList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/nodes": {
+      "get": {
+        "operationId": "nodesList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NodeDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "nodes"
+        ]
+      }
     }
   },
   "info": {
@@ -172,6 +403,259 @@
           "agentVersion",
           "protocol",
           "connectedAt"
+        ]
+      },
+      "ServerDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "hostPort": {
+            "type": "number",
+            "description": "Port players connect to on the node"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "installing",
+              "starting",
+              "running",
+              "stopping",
+              "stopped",
+              "crashed"
+            ]
+          },
+          "statusMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "nodeId",
+          "templateId",
+          "settings",
+          "hostPort",
+          "status",
+          "statusMessage",
+          "createdAt"
+        ]
+      },
+      "CreateServerDto": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "Survival"
+          },
+          "templateId": {
+            "type": "string",
+            "example": "minecraft-java/paper"
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "nodeId",
+          "name",
+          "templateId"
+        ]
+      },
+      "CommandDto": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "example": "say Hello"
+          }
+        },
+        "required": [
+          "command"
+        ]
+      },
+      "NamedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "LocalizedTextDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "de": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "en"
+        ]
+      },
+      "VariantDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "$ref": "#/components/schemas/LocalizedTextDto"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "TemplateConfigFieldDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/LocalizedTextDto"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "integer"
+            ]
+          },
+          "default": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "pattern": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type",
+          "default"
+        ]
+      },
+      "TemplateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "minecraft-java/paper"
+          },
+          "game": {
+            "$ref": "#/components/schemas/NamedDto"
+          },
+          "variant": {
+            "$ref": "#/components/schemas/VariantDto"
+          },
+          "config": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateConfigFieldDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "game",
+          "variant",
+          "config"
+        ]
+      },
+      "NodeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "online": {
+            "type": "boolean",
+            "description": "Whether the agent is connected right now"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "lastSeenAt",
+          "online"
         ]
       }
     }

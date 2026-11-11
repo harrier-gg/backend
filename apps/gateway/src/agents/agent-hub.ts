@@ -1,18 +1,19 @@
-import { Inject, Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
-import { HttpAdapterHost } from '@nestjs/core';
+import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { Subjects, type AuthenticateNodeReply } from '@harrier-gg/contracts';
-import type { Hello } from '@harrier-gg/protocol';
-import type { IncomingMessage, Server } from 'node:http';
+import type { AgentMessage, Hello, PanelMessage } from '@harrier-gg/protocol';
+import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
+import { ConsoleHub } from '../console-hub';
 import { NATS } from '../nats';
 import { answerHello } from './handshake';
 
 export const AGENT_WS_PATH = '/agent/ws';
 const HELLO_TIMEOUT_MS = 10_000;
 const AUTH_TIMEOUT_MS = 3_000;
-const MAX_MESSAGE_BYTES = 16 * 1024;
+// Console output arrives in chunks; 256 KB leaves room for bursts (e.g. a long stack trace).
+const MAX_MESSAGE_BYTES = 256 * 1024;
 // ponytail: fixed cap against connection floods; per-credential limits once there are many nodes
 const MAX_AGENTS = 256;
 
@@ -37,26 +38,18 @@ export function bearerToken(header: string | undefined): string | null {
  * authenticated with the node's agent token before the upgrade completes (ADR 0004).
  */
 @Injectable()
-export class AgentHub implements OnApplicationBootstrap, OnApplicationShutdown {
+export class AgentHub implements OnApplicationShutdown {
   private readonly logger = new Logger(AgentHub.name);
   private readonly agents = new Map<string, { info: ConnectedAgent; socket: WebSocket }>();
   private readonly nodeOf = new WeakMap<IncomingMessage, Node>();
-  private wss?: WebSocketServer;
+  readonly wss: WebSocketServer;
 
   constructor(
-    private readonly http: HttpAdapterHost,
     @Inject(NATS) private readonly nats: ClientProxy,
-  ) {}
-
-  list(): ConnectedAgent[] {
-    return [...this.agents.values()].map((a) => a.info);
-  }
-
-  onApplicationBootstrap() {
-    const server: Server = this.http.httpAdapter.getHttpServer();
+    private readonly consoles: ConsoleHub,
+  ) {
     this.wss = new WebSocketServer({
-      server,
-      path: AGENT_WS_PATH,
+      noServer: true, // upgrades are routed by WsRouter
       maxPayload: MAX_MESSAGE_BYTES,
       verifyClient: (info: { req: IncomingMessage }, done: (ok: boolean, code?: number, message?: string) => void) => {
         void this.verify(info.req).then((ok) => (ok ? done(true) : done(false, 401, 'Unauthorized')));
@@ -65,16 +58,32 @@ export class AgentHub implements OnApplicationBootstrap, OnApplicationShutdown {
     this.wss.on('connection', (socket, req) => this.accept(socket, this.nodeOf.get(req)!));
   }
 
+  list(): ConnectedAgent[] {
+    return [...this.agents.values()].map((a) => a.info);
+  }
+
+  isOnline(nodeId: string): boolean {
+    return this.agents.has(nodeId);
+  }
+
+  /** Delivers a panel message to a node's agent. Returns false if the node is offline. */
+  send(nodeId: string, message: PanelMessage): boolean {
+    const agent = this.agents.get(nodeId);
+    if (!agent || agent.socket.readyState !== WebSocket.OPEN) return false;
+    agent.socket.send(JSON.stringify(message));
+    return true;
+  }
+
   onApplicationShutdown() {
     for (const { socket } of this.agents.values()) socket.close(1001, 'Panel shutting down');
-    this.wss?.close();
+    this.wss.close();
   }
 
   private async verify(req: IncomingMessage): Promise<boolean> {
     // Browsers always send an Origin header, the agent never does. This way no foreign website
     // can pose as an agent through the user's browser (cross-site WebSocket hijacking).
     if (req.headers.origin !== undefined) return false;
-    if (this.wss!.clients.size >= MAX_AGENTS) return false;
+    if (this.wss.clients.size >= MAX_AGENTS) return false;
 
     const token = bearerToken(req.headers.authorization);
     if (!token) return false;
@@ -119,11 +128,41 @@ export class AgentHub implements OnApplicationBootstrap, OnApplicationShutdown {
         `Agent connected: ${node.name} on ${info.hostname} (${info.os}/${info.arch}, v${info.agentVersion}, protocol ${info.protocol})`,
       );
 
+      socket.on('message', (data) => this.onAgentMessage(node, data.toString()));
       socket.on('close', () => {
         // Only remove the entry if it still belongs to this socket (not to a replacing connection).
         if (this.agents.get(node.id)?.socket === socket) this.agents.delete(node.id);
         this.logger.log(`Agent disconnected: ${node.name}`);
       });
     });
+  }
+
+  /** Messages after the handshake. Unknown types come from newer agents and are ignored (ADR 0002). */
+  private onAgentMessage(node: Node, raw: string) {
+    let message: AgentMessage;
+    try {
+      message = JSON.parse(raw) as AgentMessage;
+    } catch {
+      return;
+    }
+    if (typeof message !== 'object' || message === null || typeof (message as { serverId?: unknown }).serverId !== 'string') return;
+
+    switch (message.type) {
+      case 'consoleOutput':
+        if (typeof message.data === 'string') this.consoles.output(node.id, message.serverId, message.data);
+        break;
+      case 'serverStats':
+        this.consoles.stats(node.id, message.serverId, {
+          cpuPercent: Number(message.cpuPercent) || 0,
+          memoryBytes: Number(message.memoryBytes) || 0,
+          memoryLimitBytes: Number(message.memoryLimitBytes) || 0,
+        });
+        break;
+      case 'serverState':
+        this.consoles.status(node.id, message.serverId, message.status, message.message ?? null);
+        // The servers service validates the payload and only updates servers of this node.
+        this.nats.emit(Subjects.agentsEvent, { nodeId: node.id, message });
+        break;
+    }
   }
 }

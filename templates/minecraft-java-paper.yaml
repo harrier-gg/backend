@@ -1,0 +1,10 @@
+schemaVersion: 1
+id: minecraft-java/paper
+extends: minecraft-java
+variant:
+  id: paper
+  name: Paper
+  description: { en: Fast server with plugin support (Bukkit/Paper API)., de: Schneller Server mit Plugin-Unterstützung (Bukkit/Paper-API). }
+runtime:
+  env:
+    TYPE: PAPER
