@@ -19,7 +19,30 @@ model Node {
   tokenHash  Bytes     @map("token_hash")
   createdAt  DateTime  @default(now()) @map("created_at")
   lastSeenAt DateTime? @map("last_seen_at")
+  servers    Server[]
 
   @@map("nodes")
+  @@schema("servers")
+}
+
+/// A game server on a node, created from a template (ADR 0005).
+model Server {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  nodeId        String   @map("node_id") @db.Uuid
+  node          Node     @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  name          String
+  templateId    String   @map("template_id")
+  /// Validated values for the template's config fields.
+  settings      Json
+  /// Port players connect to on the node.
+  hostPort      Int      @map("host_port")
+  /// Last status reported by the agent.
+  status        String   @default("stopped")
+  statusMessage String?  @map("status_message")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([nodeId, hostPort])
+  @@unique([nodeId, name])
+  @@map("servers")
   @@schema("servers")
 }

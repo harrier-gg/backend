@@ -1,0 +1,10 @@
+schemaVersion: 1
+id: minecraft-java/vanilla
+extends: minecraft-java
+variant:
+  id: vanilla
+  name: Vanilla
+  description: { en: The official server from Mojang., de: Der offizielle Server von Mojang. }
+runtime:
+  env:
+    TYPE: VANILLA

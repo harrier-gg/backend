@@ -25,6 +25,8 @@ just node-create my-pc                       # prints the agent token once
 HARRIER_AGENT_TOKEN=hrr_… just dev           # in ../agent
 ```
 
+Templates for games live in `templates/` (one YAML file per variant, shared parts in an abstract base, see [ADR 0005](https://github.com/harrier-gg/.github/blob/main/adr/0005-games-variants-and-providers.md)). The servers service turns a template and the user's settings into a game-neutral runtime spec for the agent.
+
 - Health: http://localhost:8080/api/v1/health
 - API docs: http://localhost:8080/api/docs
 - NATS monitoring: http://localhost:8222

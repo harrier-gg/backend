@@ -1,0 +1,10 @@
+schemaVersion: 1
+id: minecraft-java/fabric
+extends: minecraft-java
+variant:
+  id: fabric
+  name: Fabric
+  description: { en: Lightweight mod loader for Fabric mods., de: Leichtgewichtiger Mod-Loader für Fabric-Mods. }
+runtime:
+  env:
+    TYPE: FABRIC

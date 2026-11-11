@@ -1,0 +1,48 @@
+# Abstract base for all Minecraft: Java Edition variants (ADR 0005).
+# Variants extend it and only set what differs. Image: https://github.com/itzg/docker-minecraft-server
+schemaVersion: 1
+id: minecraft-java
+abstract: true
+game:
+  id: minecraft-java
+  name: "Minecraft: Java Edition"
+install:
+  method: image
+runtime:
+  # Minecraft 26.1+ needs Java 25. ponytail: one Java for all versions; older versions (e.g. 1.16
+  # needs Java 8/11) get the right image once the version provider picks the Java tag (ADR 0005).
+  image: itzg/minecraft-server:java25
+  env:
+    EULA: "TRUE"
+    # Heap as a share of the container limit instead of a fixed -Xmx, so "memory" is the only knob.
+    MEMORY: ""
+    JVM_XX_OPTS: "-XX:MaxRAMPercentage=75"
+ports:
+  - name: game
+    container: 25565
+    protocol: tcp
+config:
+  - key: version
+    label: { en: Minecraft version, de: Minecraft-Version }
+    type: string
+    default: LATEST
+    pattern: '^(LATEST|SNAPSHOT|[0-9]+\.[0-9]+(\.[0-9]+)?)$'
+    env: VERSION
+  - key: memory
+    label: { en: Memory (MB), de: Arbeitsspeicher (MB) }
+    type: integer
+    default: 2048
+    min: 1024
+    max: 32768
+    limit: memory
+  - key: motd
+    label: { en: Server description, de: Serverbeschreibung }
+    type: string
+    default: A Harrier server
+    pattern: '^[^\r\n]{0,120}$'
+    env: MOTD
+lifecycle:
+  ready: 'Done \([0-9.]+s\)!'
+  stopTimeoutSecs: 60
+capabilities:
+  console: { via: stdin }
