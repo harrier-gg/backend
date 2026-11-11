@@ -7,7 +7,8 @@ import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { config } from './config';
 import { createDb } from './db';
 import { DB, NodesController } from './nodes.controller';
-import { NATS, ServersController, TEMPLATES } from './servers.controller';
+import { NATS, ServersController, TEMPLATES, VERSIONS } from './servers.controller';
+import { VersionProviders } from './versions';
 import { TemplateCatalog } from './templates';
 import { VERSION } from './version';
 
@@ -25,6 +26,7 @@ class HealthController {
     { provide: DB, useFactory: createDb },
     { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } }) },
     // Official templates ship with the backend for now; they move to the templates repository later.
+    { provide: VERSIONS, useFactory: () => new VersionProviders() },
     { provide: TEMPLATES, useFactory: () => TemplateCatalog.fromDirectory(config.HARRIER_TEMPLATES_DIR ?? join(__dirname, '../../../templates')) },
   ],
 })

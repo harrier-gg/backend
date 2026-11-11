@@ -8,3 +8,5 @@ variant:
 runtime:
   env:
     TYPE: PAPER
+versions:
+  provider: papermc

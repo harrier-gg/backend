@@ -9,14 +9,23 @@ game:
 install:
   method: image
 runtime:
-  # Minecraft 26.1+ needs Java 25. ponytail: one Java for all versions; older versions (e.g. 1.16
-  # needs Java 8/11) get the right image once the version provider picks the Java tag (ADR 0005).
+  # Used when the Java a version needs is unknown (e.g. the panel is offline).
   image: itzg/minecraft-server:java25
+  # The panel picks the image with the Java the chosen version needs (ADR 0012).
+  java:
+    "8": itzg/minecraft-server:java8
+    "11": itzg/minecraft-server:java11
+    "16": itzg/minecraft-server:java16
+    "17": itzg/minecraft-server:java17
+    "21": itzg/minecraft-server:java21
+    "25": itzg/minecraft-server:java25
   env:
     EULA: "TRUE"
     # Heap as a share of the container limit instead of a fixed -Xmx, so "memory" is the only knob.
     MEMORY: ""
-    JVM_XX_OPTS: "-XX:MaxRAMPercentage=75"
+    JVM_XX_OPTS: "-XX:MaxRAMPercentage=75.0" # "75.0", not "75": Java 8 only takes a decimal
+versions:
+  provider: mojang
 ports:
   - name: game
     container: 25565
@@ -24,9 +33,8 @@ ports:
 config:
   - key: version
     label: { en: Minecraft version, de: Minecraft-Version }
-    type: string
+    type: version
     default: LATEST
-    pattern: '^(LATEST|SNAPSHOT|[0-9]+\.[0-9]+(\.[0-9]+)?)$'
     env: VERSION
   - key: memory
     label: { en: Memory (MB), de: Arbeitsspeicher (MB) }

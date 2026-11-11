@@ -796,6 +796,37 @@
         ]
       }
     },
+    "/templates/versions": {
+      "get": {
+        "operationId": "templatesVersions",
+        "parameters": [
+          {
+            "name": "template",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "minecraft-java/paper",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionListDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "templates"
+        ]
+      }
+    },
     "/nodes": {
       "get": {
         "operationId": "nodesList",
@@ -1557,8 +1588,10 @@
             "type": "string",
             "enum": [
               "string",
-              "integer"
-            ]
+              "integer",
+              "version"
+            ],
+            "description": "version: pick from GET /templates/versions"
           },
           "default": {
             "oneOf": [
@@ -1620,6 +1653,47 @@
           "variant",
           "files",
           "config"
+        ]
+      },
+      "GameVersionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "26.3"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "release",
+              "snapshot"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ]
+      },
+      "VersionListDto": {
+        "type": "object",
+        "properties": {
+          "latest": {
+            "type": "string",
+            "example": "26.3",
+            "description": "The newest release; what \"latest\" starts"
+          },
+          "versions": {
+            "description": "Newest first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameVersionDto"
+            }
+          }
+        },
+        "required": [
+          "latest",
+          "versions"
         ]
       },
       "NodeDto": {

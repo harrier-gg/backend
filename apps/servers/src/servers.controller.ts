@@ -16,6 +16,8 @@ import {
   type AgentsRequestReply,
   type ConfigFile,
   UpdateSettingsRequestSchema,
+  TemplateVersionsRequestSchema,
+  type VersionList,
   ServerIdSchema,
   ServerStatusSchema,
   Subjects,
@@ -31,10 +33,12 @@ import { firstValueFrom, timeout } from 'rxjs';
 import type { Db } from './db';
 import { DB } from './nodes.controller';
 import { createNode } from './node-token';
+import { checkVersion, resolveVersion, type VersionProviders } from './versions';
 import { buildSpec, knownSettings, validateSettings, type Settings, type TemplateCatalog } from './templates';
 
 export const NATS = Symbol('NATS');
 export const TEMPLATES = Symbol('TEMPLATES');
+export const VERSIONS = Symbol('VERSIONS');
 
 type ServerRow = Awaited<ReturnType<Db['server']['findFirstOrThrow']>>;
 
@@ -70,11 +74,22 @@ export class ServersController {
     @Inject(DB) private readonly db: Db,
     @Inject(NATS) private readonly nats: ClientProxy,
     @Inject(TEMPLATES) private readonly templates: TemplateCatalog,
+    @Inject(VERSIONS) private readonly versions: VersionProviders,
   ) {}
 
   @MessagePattern(Subjects.templatesList)
   listTemplates(): Reply<TemplateSummary[]> {
     return { data: this.templates.list() };
+  }
+
+  /** The versions a template's version field offers (ADR 0012). */
+  @MessagePattern(Subjects.templatesVersions)
+  async templateVersions(@Payload() payload: unknown): Promise<Reply<VersionList>> {
+    const request = TemplateVersionsRequestSchema.safeParse(payload);
+    const template = request.success ? this.templates.get(request.data.template) : undefined;
+    if (!template?.versions) return fail(404, 'This template has no version list');
+    const list = await this.versions.list(template.versions.provider);
+    return list ? { data: list } : fail(503, 'The version list is not reachable right now; type the version instead');
   }
 
   @MessagePattern(Subjects.nodesList)
@@ -130,6 +145,8 @@ export class ServersController {
     if (!template) return fail(400, `Unknown template "${templateId}"`);
     const validated = validateSettings(template, request.data.settings);
     if ('error' in validated) return fail(400, validated.error);
+    const unknownVersion = await checkVersion(this.versions, template, validated.settings);
+    if (unknownVersion) return fail(400, unknownVersion);
     if (!(await this.db.node.findUnique({ where: { id: nodeId } }))) return fail(400, 'Unknown node');
 
     // ponytail: first free port from the template's default upwards; port ranges per node later
@@ -157,7 +174,8 @@ export class ServersController {
     const validated = validateSettings(template, knownSettings(template, server.settings as Settings));
     if ('error' in validated) return fail(409, `Stored settings no longer match the template: ${validated.error}`);
 
-    const spec = buildSpec(template, validated.settings, server.hostPort);
+    const resolved = await resolveVersion(this.versions, template, validated.settings);
+    const spec = buildSpec(template, resolved.settings, server.hostPort, resolved.image);
     return this.send(server, { type: 'startServer', serverId: server.id, spec });
   }
 
@@ -171,6 +189,8 @@ export class ServersController {
     if (!template) return fail(409, `The template "${server.templateId}" no longer exists`);
     const validated = validateSettings(template, { ...knownSettings(template, server.settings as Settings), ...request.data.settings });
     if ('error' in validated) return fail(400, validated.error);
+    const unknownVersion = await checkVersion(this.versions, template, validated.settings);
+    if (unknownVersion) return fail(400, unknownVersion);
     const updated = await this.db.server.update({ where: { id: server.id }, data: { settings: validated.settings } });
     return { data: toSummary(updated) };
   }

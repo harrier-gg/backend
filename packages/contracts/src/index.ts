@@ -10,6 +10,7 @@ export const Subjects = {
   nodesCreate: 'nodes.create',
   nodesRemove: 'nodes.remove',
   templatesList: 'templates.list',
+  templatesVersions: 'templates.versions',
   serversList: 'servers.list',
   serversGet: 'servers.get',
   serversCreate: 'servers.create',
@@ -95,12 +96,25 @@ export interface LocalizedText {
 export interface TemplateConfigField {
   key: string;
   label: LocalizedText;
-  type: 'string' | 'integer';
+  /** `version`: pick from `GET /templates/versions` (ADR 0012). */
+  type: 'string' | 'integer' | 'version';
   default: string | number;
   min?: number;
   max?: number;
   pattern?: string;
 }
+
+/** Versions of a template's game from its version provider (ADR 0012), newest first. */
+export interface GameVersion {
+  id: string;
+  type: 'release' | 'snapshot';
+}
+export interface VersionList {
+  /** The newest release; what "latest" starts. */
+  latest: string;
+  versions: GameVersion[];
+}
+export const TemplateVersionsRequestSchema = z.object({ template: z.string().min(1).max(100) });
 
 export interface TemplateSummary {
   id: string;

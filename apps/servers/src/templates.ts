@@ -6,6 +6,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { z } from 'zod';
+import { PROVIDERS } from './versions';
 
 const Localized = z.object({ en: z.string(), de: z.string().optional() });
 
@@ -13,7 +14,8 @@ const ConfigField = z
   .object({
     key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/),
     label: Localized,
-    type: z.enum(['string', 'integer']),
+    // `version`: one of the versions of the template's version provider (ADR 0012).
+    type: z.enum(['string', 'integer', 'version']),
     default: z.union([z.string(), z.number()]),
     min: z.number().optional(),
     max: z.number().optional(),
@@ -27,6 +29,9 @@ const ConfigField = z
 /** A path inside the server's data directory: names separated by "/"; no name starts with "." (so no ".."). */
 const ConfigPath = z.string().regex(/^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/);
 
+/** Image per Java major version, so a game version gets the Java it needs (ADR 0012). */
+const JavaImages = z.record(z.string().regex(/^[0-9]+$/), z.string());
+
 /** A template file as written; variants only contain what differs from their base. */
 const TemplateFile = z.object({
   schemaVersion: z.literal(1),
@@ -37,8 +42,9 @@ const TemplateFile = z.object({
   variant: z.object({ id: z.string(), name: z.string(), description: Localized.optional() }).optional(),
   install: z.object({ method: z.enum(['image', 'download', 'steamcmd', 'script']) }).optional(),
   runtime: z
-    .object({ image: z.string().optional(), env: z.record(z.string(), z.string()).optional() })
+    .object({ image: z.string().optional(), env: z.record(z.string(), z.string()).optional(), java: JavaImages.optional() })
     .optional(),
+  versions: z.object({ provider: z.enum(PROVIDERS) }).optional(),
   ports: z
     .array(z.object({ name: z.string(), container: z.number().int().min(1).max(65535), protocol: z.enum(['tcp', 'udp']) }))
     .optional(),
@@ -55,7 +61,8 @@ const Template = z.object({
   game: z.object({ id: z.string(), name: z.string() }),
   variant: z.object({ id: z.string(), name: z.string(), description: Localized.optional() }),
   install: z.object({ method: z.literal('image') }), // M1 only runs image-based templates
-  runtime: z.object({ image: z.string(), env: z.record(z.string(), z.string()) }),
+  runtime: z.object({ image: z.string(), env: z.record(z.string(), z.string()), java: JavaImages.optional() }),
+  versions: z.object({ provider: z.enum(PROVIDERS) }).optional(),
   ports: z.array(z.object({ name: z.string(), container: z.number(), protocol: z.enum(['tcp', 'udp']) })).min(1),
   config: z.array(ConfigField),
   lifecycle: z.object({ ready: z.string().optional(), stopTimeoutSecs: z.number().default(30) }),
@@ -79,6 +86,9 @@ function checkValue(field: Field, value: unknown): string | null {
       if (field.min !== undefined && value < field.min) return `must be at least ${field.min}`;
       if (field.max !== undefined && value > field.max) return `must be at most ${field.max}`;
       return null;
+    case 'version':
+      // Whether the version exists is checked against the provider's list, which needs the network.
+      return typeof value === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(value) ? null : 'is not a version name';
     case 'string':
       if (typeof value !== 'string') return 'must be text';
       return field.pattern && !new RegExp(field.pattern).test(value) ? 'has an invalid value' : null;
@@ -92,6 +102,7 @@ function merge(base: TemplateFile, variant: TemplateFile): TemplateFile {
     ...variant,
     abstract: variant.abstract,
     runtime: { ...base.runtime, ...variant.runtime, env: { ...base.runtime?.env, ...variant.runtime?.env } },
+    versions: variant.versions ?? base.versions,
     lifecycle: { ...base.lifecycle, ...variant.lifecycle },
     capabilities: { ...base.capabilities, ...variant.capabilities },
   };
@@ -165,7 +176,7 @@ export function validateSettings(template: Template, input: Settings): { setting
 }
 
 /** Turns template + validated settings into the game-neutral spec the agent runs (ADR 0005). */
-export function buildSpec(template: Template, settings: Settings, hostPort: number): RuntimeSpec {
+export function buildSpec(template: Template, settings: Settings, hostPort: number, image = template.runtime.image): RuntimeSpec {
   const env = { ...template.runtime.env };
   let memoryMb = 1024;
   for (const field of template.config) {
@@ -174,7 +185,7 @@ export function buildSpec(template: Template, settings: Settings, hostPort: numb
     if (field.limit === 'memory') memoryMb = Number(value);
   }
   return {
-    image: template.runtime.image,
+    image,
     env,
     // M1: one port per server. Templates with several ports get consecutive host ports later.
     ports: [{ containerPort: template.ports[0].container, hostPort, protocol: template.ports[0].protocol }],

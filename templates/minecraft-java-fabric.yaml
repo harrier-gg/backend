@@ -8,3 +8,5 @@ variant:
 runtime:
   env:
     TYPE: FABRIC
+versions:
+  provider: fabric
