@@ -124,6 +124,9 @@ export class ConsoleHub {
       socket.close(4004, 'Server not found');
       return;
     }
+    // The browser may have closed the console while we looked up the server; its "close" event has
+    // then already fired, so registering it now would leak the socket and the recheck timer.
+    if (socket.readyState !== WebSocket.OPEN) return;
     const server = reply.data;
     const channel = this.channel(server.nodeId, server.id);
     if (!channel) {
@@ -141,7 +144,11 @@ export class ConsoleHub {
       } satisfies ConsoleEvent),
     );
 
-    const recheck = setInterval(() => void this.currentUser(req, socket), SESSION_RECHECK_MS);
+    const recheck = setInterval(() => {
+      // Belt and braces: never keep a timer for a socket that is gone.
+      if (socket.readyState !== WebSocket.OPEN) return clearInterval(recheck);
+      void this.currentUser(req, socket);
+    }, SESSION_RECHECK_MS);
 
     socket.on('message', async (raw) => {
       let command: unknown;
