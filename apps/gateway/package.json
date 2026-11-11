@@ -1,6 +1,6 @@
 {
   "name": "@harrier-gg/gateway",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Single public entry point: REST for the web app, WebSocket for agents",
   "main": "dist/main.js",
