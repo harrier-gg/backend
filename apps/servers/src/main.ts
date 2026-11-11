@@ -3,12 +3,10 @@ import { Controller, Logger, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { MessagePattern, Transport, type MicroserviceOptions } from '@nestjs/microservices';
 import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
-import { z } from 'zod';
+import { config } from './config';
+import { createDb } from './db';
+import { DB, NodesController } from './nodes.controller';
 import { VERSION } from './version';
-
-const config = z
-  .object({ HARRIER_NATS_URL: z.string().url().default('nats://localhost:4222') })
-  .parse(process.env);
 
 @Controller()
 class HealthController {
@@ -18,7 +16,10 @@ class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController] })
+@Module({
+  controllers: [HealthController, NodesController],
+  providers: [{ provide: DB, useFactory: createDb }],
+})
 class AppModule {}
 
 async function bootstrap() {

@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { AgentHub } from './agents/agent-hub';
 import { loadConfig } from './config';
-import { AgentsController, NATS, SystemController } from './controllers';
+import { AgentsController, SystemController } from './controllers';
+import { NATS } from './nats';
 import { ContractRef } from './openapi';
 
 const config = loadConfig();

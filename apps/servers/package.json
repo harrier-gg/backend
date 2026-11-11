@@ -5,10 +5,15 @@
   "description": "Servers, templates, desired state (from M1). Reachable via NATS only",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "dev": "tsc-watch -p tsconfig.json --onSuccess \"node --enable-source-maps dist/main.js\"",
     "start": "node --enable-source-maps dist/main.js",
-    "check-types": "tsc -p tsconfig.json --noEmit"
+    "check-types": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "generate": "prisma generate",
+    "test": "tsx --test 'src/**/*.test.ts'",
+    "migrate": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "node:create": "node dist/cli/node-create.js"
   },
   "dependencies": {
     "@harrier-gg/contracts": "*",
@@ -16,8 +21,15 @@
     "@nestjs/common": "^12.4.2",
     "@nestjs/core": "^12.4.2",
     "@nestjs/microservices": "^12.4.2",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "prisma": "^7.10.1"
   }
 }
