@@ -125,7 +125,8 @@ export interface TemplateSummary {
   files: { path: string; description?: LocalizedText }[];
 }
 
-export const ServerStatusSchema = z.enum(['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed']);
+/** `sleeping`: stopped because nobody was online; joining or starting wakes it (ADR 0013). */
+export const ServerStatusSchema = z.enum(['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed', 'sleeping']);
 export type ServerStatus = z.infer<typeof ServerStatusSchema>;
 
 export interface ServerSummary {

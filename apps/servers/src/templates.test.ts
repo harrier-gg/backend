@@ -46,7 +46,7 @@ test('config file paths stay inside the data directory', () => {
 test('settings get defaults and are checked against the template', () => {
   const paper = catalog.get('minecraft-java/paper')!;
   assert.deepEqual(validateSettings(paper, {}), {
-    settings: { version: 'LATEST', memory: 2048 },
+    settings: { version: 'LATEST', memory: 2048, sleepAfter: 15 },
   });
   assert.ok('error' in validateSettings(paper, { memory: 512 }));
   assert.ok('error' in validateSettings(paper, { version: '1.21; rm -rf /' }));
@@ -72,6 +72,9 @@ test('the runtime spec is game-neutral and carries env, limits and ports', () =>
   assert.equal(spec.memoryMb, 4096);
   assert.deepEqual(spec.ports, [{ containerPort: 25565, hostPort: 25566, protocol: 'tcp' }]);
   assert.deepEqual(spec.query, { protocol: 'minecraft', port: 25566 });
+  assert.equal(spec.sleep?.idleMinutes, 15);
+  assert.deepEqual([spec.sleep?.wake?.protocol, spec.sleep?.wake?.port], ['minecraft', 25566], 'woken on the game port');
+  assert.equal(buildSpec(paper, { ...result.settings, sleepAfter: 0 }, 25566).sleep, null, '0 = never');
   assert.ok(spec.readyPattern && new RegExp(spec.readyPattern).test('[Server thread/INFO]: Done (3.2s)! For help, type "help"'));
 });
 

@@ -23,7 +23,7 @@ import { AgentHub } from './agents/agent-hub';
 import { Allow } from './auth/auth.guard';
 import { NATS } from './nats';
 
-const STATUSES: ServerStatus[] = ['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed'];
+const STATUSES: ServerStatus[] = ['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed', 'sleeping'];
 
 class LocalizedTextDto {
   @ApiProperty() en!: string;
