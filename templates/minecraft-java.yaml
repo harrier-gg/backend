@@ -67,6 +67,9 @@ capabilities:
   # libraries are downloaded again by the image, so backups leave them out.
   backup:
     before: [save-off, save-all flush]
-    ready: 'Saved the game'
+    # The game's own log line, anchored at both ends: players can write anything into chat, and
+    # the agent checks console patterns one whole line at a time. Vanilla/Fabric print
+    # "[12:00:00] [Server thread/INFO]: …", Paper "[12:00:00 INFO]: …".
+    ready: '^\[[0-9:]{8}(\] \[Server thread/INFO\]| INFO\]): (System chat: )?Saved the game$'
     after: [save-on]
     exclude: [libraries, versions, .cache, cache, .fabric, '*.jar']
