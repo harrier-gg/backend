@@ -6,6 +6,8 @@ const ConfigSchema = z.object({
   // Defaults to localhost: until login (M2) and agent tokens (M1) exist, the gateway must not be reachable from the network.
   HARRIER_HOST: z.string().default('127.0.0.1'),
   HARRIER_NATS_URL: z.string().url().default('nats://localhost:4222'),
+  /** Address users open in the browser; HTTPS here makes session cookies Secure (ADR 0006). */
+  HARRIER_PUBLIC_URL: z.string().url().default('http://localhost:5173'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

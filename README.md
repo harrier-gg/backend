@@ -5,7 +5,8 @@ NestJS microservices for the Harrier panel. Only the `gateway` is reachable from
 | App/package | Purpose |
 |---|---|
 | `apps/gateway` | REST API (`/api/v1`), API docs (`/api/docs`), WebSocket for agents (`/agent/ws`) |
-| `apps/servers` | Servers, templates, desired state (from M1). NATS only |
+| `apps/servers` | Nodes, servers, templates. NATS only |
+| `apps/identity` | Users, sessions, first-run setup ([ADR 0006](https://github.com/harrier-gg/.github/blob/main/adr/0006-users-login-and-sessions.md)). NATS only |
 | `packages/contracts` | NATS subjects and Zod schemas shared by all services |
 | `packages/protocol` | Agent protocol types, **generated** from `../agent` (`just protocol`) |
 
@@ -17,6 +18,8 @@ Requirements: Node 22 (`.nvmrc`), Docker, [just](https://just.systems).
 just setup   # npm install + build
 just dev     # Postgres + NATS (Docker) and all services in watch mode
 ```
+
+**First start:** the identity service logs a one-time setup link (`http://localhost:5173/setup?token=…`). Open it to create the owner account; every API route and console needs a login from then on.
 
 Connect an agent (ADR 0004):
 
@@ -35,11 +38,11 @@ Templates for games live in `templates/` (one YAML file per variant, shared part
 |---|---|
 | `just api` | Regenerate `openapi.json` after every API change (committed) |
 | `just protocol` | Take over the protocol types from `../agent` (committed) |
-| `just migration <name>` | Create a database migration after changing `prisma/schema.prisma` (committed) |
+| `just migration <service> <name>` | Create a database migration after changing a service's `prisma/schema.prisma` (committed) |
 | `just node-create <name>` | Register a node and print its agent token once |
 | `just check` | Everything CI checks |
 
-Configuration via `HARRIER_*` environment variables only: `HARRIER_PORT`, `HARRIER_HOST` (default `127.0.0.1` until user login exists), `HARRIER_NATS_URL`, `HARRIER_DATABASE_URL` (servers; the dev database listens on port 5433).
+Configuration via `HARRIER_*` environment variables only: `HARRIER_PORT`, `HARRIER_HOST` (default `127.0.0.1` until user login exists), `HARRIER_NATS_URL`, `HARRIER_DATABASE_URL` (servers, identity; the dev database listens on port 5433), `HARRIER_PUBLIC_URL` (address users open; HTTPS makes cookies `Secure`).
 
 The API speaks English only; errors use [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details, and the web panel translates them (see ADR 0003).
 

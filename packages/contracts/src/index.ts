@@ -3,6 +3,7 @@ import { z } from 'zod';
 /** NATS subjects. Format: `<service>.<action>`. Define them only here, never as string literals in code. */
 export const Subjects = {
   serversHealth: 'servers.health',
+  identityHealth: 'identity.health',
   /** Gateway → servers: is this agent token valid? (ADR 0004) */
   nodesAuthenticate: 'nodes.authenticate',
   nodesList: 'nodes.list',
@@ -17,6 +18,12 @@ export const Subjects = {
   agentsSend: 'agents.send',
   /** Gateway → servers (event): an agent reported something the servers service persists. */
   agentsEvent: 'agents.event',
+  /** Identity (ADR 0006). */
+  identitySetupStatus: 'identity.setupStatus',
+  identitySetup: 'identity.setup',
+  identityLogin: 'identity.login',
+  identityLogout: 'identity.logout',
+  identitySession: 'identity.session',
 } as const;
 
 /**
@@ -121,3 +128,46 @@ export const AgentsEventSchema = z.object({
   }),
 });
 export type AgentsEvent = z.infer<typeof AgentsEventSchema>;
+
+// ---- Identity (ADR 0006) ----
+
+export const RoleSchema = z.enum(['owner', 'admin', 'member']);
+export type Role = z.infer<typeof RoleSchema>;
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+}
+
+/** Returned on setup and login. The token goes into the session cookie and nowhere else. */
+export interface SessionCreated {
+  sessionToken: string;
+  expiresAt: string;
+  user: UserSummary;
+}
+
+/** Returned for a valid session. `expiresAt` moves forward when the session was extended. */
+export interface SessionInfo {
+  user: UserSummary;
+  expiresAt: string;
+  renewed: boolean;
+}
+
+const Email = z.string().trim().toLowerCase().email().max(254);
+const Password = z.string().min(10).max(256);
+
+export const SetupRequestSchema = z.object({
+  token: z.string().max(100),
+  name: z.string().trim().min(1).max(64),
+  email: Email,
+  password: Password,
+});
+
+export const LoginRequestSchema = z.object({
+  email: Email,
+  password: z.string().max(256),
+});
+
+export const SessionTokenSchema = z.object({ sessionToken: z.string().max(100) });

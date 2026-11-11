@@ -1,0 +1,49 @@
+// Data owned by the identity service. Other services never read these tables (ADR 0001, ADR 0006).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["identity"]
+}
+
+enum Role {
+  owner
+  admin
+  member
+
+  @@schema("identity")
+}
+
+model User {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  /// Stored in lower case; unique.
+  email        String    @unique
+  name         String
+  /// "scrypt$N$r$p$salt$hash" (ADR 0006)
+  passwordHash String    @map("password_hash")
+  role         Role      @default(member)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  sessions     Session[]
+
+  @@map("users")
+  @@schema("identity")
+}
+
+model Session {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// SHA-256 of the session token. The token itself is only in the user's cookie.
+  tokenHash Bytes    @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("sessions")
+  @@schema("identity")
+}
