@@ -36,6 +36,7 @@ test('the runtime spec is game-neutral and carries env, limits and ports', () =>
   assert.equal(spec.env.TYPE, 'PAPER');
   assert.equal(spec.memoryMb, 4096);
   assert.deepEqual(spec.ports, [{ containerPort: 25565, hostPort: 25566, protocol: 'tcp' }]);
+  assert.deepEqual(spec.query, { protocol: 'minecraft', port: 25566 });
   assert.ok(spec.readyPattern && new RegExp(spec.readyPattern).test('[Server thread/INFO]: Done (3.2s)! For help, type "help"'));
 });
 

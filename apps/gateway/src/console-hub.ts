@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { can, Subjects, type Reply, type ServerStatus, type ServerSummary, type UserSummary } from '@harrier-gg/contracts';
-import type { ServerStats } from '@harrier-gg/protocol';
+import { can, Subjects, type MetricsRecord, type Reply, type ServerStatus, type ServerSummary, type UserSummary } from '@harrier-gg/contracts';
+import type { ServerPlayers, ServerStats } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -17,33 +17,69 @@ const BUFFER_BYTES = 64 * 1024;
 const MAX_CHANNELS_PER_NODE = 128;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+type Players = Omit<ServerPlayers, 'serverId'>;
+
 interface Channel {
+  nodeId: string;
+  serverId: string;
   output: string;
   status?: { status: ServerStatus; message: string | null };
   stats?: Omit<ServerStats, 'serverId'>;
+  players?: Players;
+  /** Values of the current minute for the history (ADR 0009). */
+  minute?: { cpuSum: number; samples: number; memoryMax: number; playersMax: number | null };
   browsers: Set<WebSocket>;
 }
 
 /** Messages to the browser. */
 export type ConsoleEvent =
-  | { type: 'snapshot'; output: string; status: ServerStatus; message: string | null; stats: Channel['stats'] | null }
+  | { type: 'snapshot'; output: string; status: ServerStatus; message: string | null; stats: Channel['stats'] | null; players: Players | null }
   | { type: 'output'; data: string }
   | { type: 'status'; status: ServerStatus; message: string | null }
-  | { type: 'stats'; cpuPercent: number; memoryBytes: number; memoryLimitBytes: number };
+  | { type: 'stats'; cpuPercent: number; memoryBytes: number; memoryLimitBytes: number }
+  | ({ type: 'players' } & Players);
 
 /**
- * Collects console output, status and stats that agents report, and fans them out to browsers.
+ * Collects console output, status, stats and players that agents report, and fans them out to
+ * browsers. Once a minute it hands condensed values to the servers service for the graphs.
  * Channels are keyed by node and server, so an agent can only ever feed its own servers' consoles.
  */
 @Injectable()
-export class ConsoleHub {
+export class ConsoleHub implements OnApplicationShutdown {
   private readonly logger = new Logger(ConsoleHub.name);
   private readonly channels = new Map<string, Channel>();
   private readonly perNode = new Map<string, number>();
   readonly wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
 
+  private readonly flushTimer = setInterval(() => this.flushMinute(), 60_000);
+
   constructor(@Inject(NATS) private readonly nats: ClientProxy) {
     this.wss.on('connection', (socket: WebSocket, req: IncomingMessage, user: UserSummary) => void this.accept(socket, req, user));
+  }
+
+  onApplicationShutdown() {
+    clearInterval(this.flushTimer);
+  }
+
+  /** Sends one sample per server that reported stats this minute, grouped by node. */
+  flushMinute(now = new Date()) {
+    const at = new Date(Math.floor(now.getTime() / 60_000) * 60_000).toISOString();
+    const byNode = new Map<string, MetricsRecord['samples']>();
+    for (const channel of this.channels.values()) {
+      const minute = channel.minute;
+      channel.minute = undefined;
+      if (!minute) continue;
+      const samples = byNode.get(channel.nodeId) ?? [];
+      samples.push({
+        serverId: channel.serverId,
+        at,
+        cpuPercent: Math.round((minute.cpuSum / minute.samples) * 10) / 10,
+        memoryBytes: minute.memoryMax,
+        players: minute.playersMax,
+      });
+      byNode.set(channel.nodeId, samples);
+    }
+    for (const [nodeId, samples] of byNode) this.nats.emit(Subjects.metricsRecord, { nodeId, samples } satisfies MetricsRecord);
   }
 
   private channel(nodeId: string, serverId: string): Channel | null {
@@ -53,7 +89,7 @@ export class ConsoleHub {
       const count = this.perNode.get(nodeId) ?? 0;
       if (!UUID.test(serverId) || count >= MAX_CHANNELS_PER_NODE) return null;
       this.perNode.set(nodeId, count + 1);
-      this.channels.set(key, (channel = { output: '', browsers: new Set() }));
+      this.channels.set(key, (channel = { nodeId, serverId, output: '', browsers: new Set() }));
     }
     return channel;
   }
@@ -74,7 +110,10 @@ export class ConsoleHub {
     const channel = this.channel(nodeId, serverId);
     if (!channel) return;
     channel.status = { status, message };
-    if (status !== 'running') channel.stats = undefined;
+    if (status !== 'running') {
+      channel.stats = undefined;
+      channel.players = undefined;
+    }
     this.broadcast(channel, { type: 'status', status, message });
   }
 
@@ -82,7 +121,19 @@ export class ConsoleHub {
     const channel = this.channel(nodeId, serverId);
     if (!channel) return;
     channel.stats = stats;
+    const minute = (channel.minute ??= { cpuSum: 0, samples: 0, memoryMax: 0, playersMax: channel.players?.online ?? null });
+    minute.cpuSum += stats.cpuPercent;
+    minute.samples++;
+    minute.memoryMax = Math.max(minute.memoryMax, stats.memoryBytes);
     this.broadcast(channel, { type: 'stats', ...stats });
+  }
+
+  players(nodeId: string, serverId: string, players: Players) {
+    const channel = this.channel(nodeId, serverId);
+    if (!channel) return;
+    channel.players = players;
+    if (channel.minute) channel.minute.playersMax = Math.max(channel.minute.playersMax ?? 0, players.online);
+    this.broadcast(channel, { type: 'players', ...players });
   }
 
   /**
@@ -122,6 +173,7 @@ export class ConsoleHub {
         status: channel.status?.status ?? server.status,
         message: channel.status?.message ?? server.statusMessage,
         stats: channel.stats ?? null,
+        players: channel.players ?? null,
       } satisfies ConsoleEvent),
     );
 

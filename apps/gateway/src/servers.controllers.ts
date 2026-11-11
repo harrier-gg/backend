@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
-import { ApiBody, ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   Subjects,
   type AgentsSendReply,
   type AgentsSendRequest,
+  type MetricPoint,
   type NodeCreated,
   type NodeSummary,
   type Reply,
@@ -89,6 +90,14 @@ class CreateServerDto {
   settings?: Record<string, string | number>;
 }
 
+class MetricPointDto implements MetricPoint {
+  @ApiProperty({ format: 'date-time', description: 'Start of the bucket' }) at!: string;
+  @ApiProperty({ description: 'Average CPU usage; 100 = one core' }) cpuPercent!: number;
+  @ApiProperty({ description: 'Peak memory usage' }) memoryBytes!: number;
+  @ApiProperty({ type: Number, nullable: true, description: 'Peak players online; null for games without a player query' })
+  players!: number | null;
+}
+
 class CommandDto {
   @ApiProperty({ example: 'say Hello' }) command!: string;
 }
@@ -171,6 +180,13 @@ export class ServersController {
   @ApiOkResponse({ type: ServerDto })
   get(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
     return call(this.nats, Subjects.serversGet, { id });
+  }
+
+  @Get('servers/:id/metrics')
+  @ApiQuery({ name: 'range', enum: ['1h', '24h', '7d'] })
+  @ApiOkResponse({ type: [MetricPointDto] })
+  metrics(@Param('id', ParseUUIDPipe) id: string, @Query('range') range: string): Promise<MetricPointDto[]> {
+    return call(this.nats, Subjects.serversMetrics, { id, range });
   }
 
   @Post('servers/:id/start')

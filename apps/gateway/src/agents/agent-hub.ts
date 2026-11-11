@@ -163,6 +163,15 @@ export class AgentHub implements OnApplicationShutdown {
           memoryLimitBytes: Number(message.memoryLimitBytes) || 0,
         });
         break;
+      case 'serverPlayers': {
+        const names = Array.isArray(message.names) ? message.names : [];
+        this.consoles.players(node.id, message.serverId, {
+          online: Number(message.online) || 0,
+          max: Number(message.max) || 0,
+          names: names.filter((n): n is string => typeof n === 'string' && n.length <= 32).slice(0, 32),
+        });
+        break;
+      }
       case 'serverState':
         this.consoles.status(node.id, message.serverId, message.status, message.message ?? null);
         // The servers service validates the payload and only updates servers of this node.

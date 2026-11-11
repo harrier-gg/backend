@@ -16,6 +16,10 @@ export const Subjects = {
   serversStart: 'servers.start',
   serversStop: 'servers.stop',
   serversCommand: 'servers.command',
+  /** Graph data of one server (ADR 0009). */
+  serversMetrics: 'servers.metrics',
+  /** Gateway → servers (event): per-minute values of a node's servers. */
+  metricsRecord: 'servers.metrics.record',
   /** Servers → gateway: deliver a panel message to a connected agent. */
   agentsSend: 'agents.send',
   /** Gateway → servers (event): an agent reported something the servers service persists. */
@@ -151,6 +155,30 @@ export const AgentsEventSchema = z.object({
   }),
 });
 export type AgentsEvent = z.infer<typeof AgentsEventSchema>;
+
+// ---- History (ADR 0009) ----
+
+export const MetricsRangeSchema = z.enum(['1h', '24h', '7d']);
+export type MetricsRange = z.infer<typeof MetricsRangeSchema>;
+export const MetricsRequestSchema = z.object({ id: z.string().uuid(), range: MetricsRangeSchema });
+
+/** One minute of a server: average CPU, peak memory, peak players (null without a query). */
+const MetricSampleSchema = z.object({
+  serverId: z.string().uuid(),
+  at: z.iso.datetime(),
+  cpuPercent: z.number().min(0).max(100_000),
+  memoryBytes: z.number().int().min(0),
+  players: z.number().int().min(0).nullable(),
+});
+export const MetricsRecordSchema = z.object({ nodeId: z.string().uuid(), samples: z.array(MetricSampleSchema).max(256) });
+export type MetricsRecord = z.infer<typeof MetricsRecordSchema>;
+
+export interface MetricPoint {
+  at: string;
+  cpuPercent: number;
+  memoryBytes: number;
+  players: number | null;
+}
 
 // ---- Identity (ADR 0006) ----
 

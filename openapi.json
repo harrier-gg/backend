@@ -509,6 +509,52 @@
         ]
       }
     },
+    "/servers/{id}/metrics": {
+      "get": {
+        "operationId": "serversMetrics",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "range",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "1h",
+                "24h",
+                "7d"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MetricPointDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/servers/{id}/start": {
       "post": {
         "operationId": "serversStart",
@@ -1219,6 +1265,35 @@
           "nodeId",
           "name",
           "templateId"
+        ]
+      },
+      "MetricPointDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the bucket"
+          },
+          "cpuPercent": {
+            "type": "number",
+            "description": "Average CPU usage; 100 = one core"
+          },
+          "memoryBytes": {
+            "type": "number",
+            "description": "Peak memory usage"
+          },
+          "players": {
+            "type": "number",
+            "nullable": true,
+            "description": "Peak players online; null for games without a player query"
+          }
+        },
+        "required": [
+          "at",
+          "cpuPercent",
+          "memoryBytes",
+          "players"
         ]
       },
       "CommandDto": {

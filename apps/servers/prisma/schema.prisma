@@ -40,9 +40,25 @@ model Server {
   status        String   @default("stopped")
   statusMessage String?  @map("status_message")
   createdAt     DateTime @default(now()) @map("created_at")
+  metrics       ServerMetric[]
 
   @@unique([nodeId, hostPort])
   @@unique([nodeId, name])
   @@map("servers")
+  @@schema("servers")
+}
+
+/// One minute of a server's resource usage and players, kept for 7 days (ADR 0009).
+model ServerMetric {
+  serverId    String   @map("server_id") @db.Uuid
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  at          DateTime
+  cpuPercent  Float    @map("cpu_percent") @db.Real
+  memoryBytes BigInt   @map("memory_bytes")
+  players     Int?
+
+  @@id([serverId, at])
+  @@index([at])
+  @@map("server_metrics")
   @@schema("servers")
 }
