@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { Subjects, type AgentsRequestReply, type AuthenticateNodeReply } from '@harrier-gg/contracts';
+import { Subjects, type AgentsRequestReply, type AuthenticateNodeReply, type FileEntry } from '@harrier-gg/contracts';
 import type { AgentMessage, Hello, PanelMessage, Restart } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
@@ -111,27 +111,28 @@ export class AgentHub implements OnApplicationShutdown {
   }
 
   private async verify(req: IncomingMessage): Promise<boolean> {
+    if (this.wss.clients.size >= MAX_AGENTS) return false;
+    const node = await this.authenticate(req);
+    if (node) this.nodeOf.set(req, node);
+    return !!node;
+  }
+
+  /** The node whose agent token the request carries (ADR 0004); also used by transfer channels. */
+  async authenticate(req: IncomingMessage): Promise<Node | null> {
     // Browsers always send an Origin header, the agent never does. This way no foreign website
     // can pose as an agent through the user's browser (cross-site WebSocket hijacking).
-    if (req.headers.origin !== undefined) return false;
-    if (this.wss.clients.size >= MAX_AGENTS) return false;
-
+    if (req.headers.origin !== undefined) return null;
     const token = bearerToken(req.headers.authorization);
-    if (!token) return false;
-
+    if (!token) return null;
     try {
       const { node } = await firstValueFrom(
         this.nats.send<AuthenticateNodeReply>(Subjects.nodesAuthenticate, { token }).pipe(timeout(AUTH_TIMEOUT_MS)),
       );
-      if (!node) {
-        this.logger.warn(`Agent rejected: invalid token (from ${req.socket.remoteAddress})`);
-        return false;
-      }
-      this.nodeOf.set(req, node);
-      return true;
+      if (!node) this.logger.warn(`Agent rejected: invalid token (from ${req.socket.remoteAddress})`);
+      return node ?? null;
     } catch (error) {
       this.logger.error(`Agent authentication failed: servers service unreachable (${String(error)})`);
-      return false;
+      return null;
     }
   }
 
@@ -206,6 +207,7 @@ export class AgentHub implements OnApplicationShutdown {
         pending.resolve({
           content: typeof message.content === 'string' ? message.content : null,
           error: typeof message.error === 'string' ? message.error.slice(0, 500) : null,
+          entries: Array.isArray(message.entries) ? message.entries.slice(0, 10_000).map(entryOf) : null,
         });
         break;
       }
@@ -222,4 +224,10 @@ export class AgentHub implements OnApplicationShutdown {
 function restartOf(restart: Restart | null | undefined): Restart | null {
   if (typeof restart !== 'object' || restart === null) return null;
   return { attempt: Number(restart.attempt) || 0, maxAttempts: Number(restart.maxAttempts) || 0 };
+}
+
+/** A directory entry as the agent sent it, reduced to known fields (ADR 0015). */
+function entryOf(entry: FileEntry): FileEntry {
+  const kind = entry.kind === 'file' || entry.kind === 'dir' ? entry.kind : 'other';
+  return { name: String(entry.name).slice(0, 255), kind, size: Number(entry.size) || 0, modified: Number(entry.modified) || null };
 }

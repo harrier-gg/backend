@@ -730,6 +730,35 @@
         "tags": [
           "servers"
         ]
+      },
+      "delete": {
+        "operationId": "filesRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "files"
+        ]
       }
     },
     "/servers/{id}/command": {
@@ -900,6 +929,194 @@
         },
         "tags": [
           "nodes"
+        ]
+      }
+    },
+    "/servers/{id}/files/list": {
+      "get": {
+        "operationId": "filesList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileEntryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/servers/{id}/files/mkdir": {
+      "post": {
+        "operationId": "filesMkdir",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/servers/{id}/files/move": {
+      "post": {
+        "operationId": "filesMove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/servers/{id}/files/download": {
+      "get": {
+        "operationId": "filesDownload",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/servers/{id}/files/upload": {
+      "put": {
+        "operationId": "filesUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "description": "Where to put the file, e.g. plugins/x.jar",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The file",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "files"
         ]
       }
     }
@@ -1750,6 +1967,67 @@
         "required": [
           "node",
           "token"
+        ]
+      },
+      "FileEntryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "dir",
+              "other"
+            ],
+            "description": "other: symlinks and special files"
+          },
+          "size": {
+            "type": "number",
+            "description": "Bytes; 0 for directories"
+          },
+          "modified": {
+            "type": "number",
+            "nullable": true,
+            "description": "Last change, seconds since 1970"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "size",
+          "modified"
+        ]
+      },
+      "PathDto": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "world/datapacks"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "MoveDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "example": "plugins/old.jar"
+          },
+          "to": {
+            "type": "string",
+            "example": "plugins/disabled/old.jar"
+          }
+        },
+        "required": [
+          "from",
+          "to"
         ]
       }
     }

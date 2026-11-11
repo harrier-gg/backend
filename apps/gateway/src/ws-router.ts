@@ -3,6 +3,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { AGENT_WS_PATH, AgentHub } from './agents/agent-hub';
+import { TRANSFER_WS_PATH, TransferHub } from './agents/transfer-hub';
 import { Sessions } from './auth/session';
 import { CONSOLE_WS_PATH, ConsoleHub } from './console-hub';
 
@@ -15,6 +16,7 @@ export class WsRouter implements OnApplicationBootstrap {
   constructor(
     private readonly http: HttpAdapterHost,
     private readonly agents: AgentHub,
+    private readonly transfers: TransferHub,
     private readonly consoles: ConsoleHub,
     private readonly sessions: Sessions,
   ) {}
@@ -25,6 +27,8 @@ export class WsRouter implements OnApplicationBootstrap {
       const path = new URL(req.url ?? '', 'http://x').pathname;
       if (path === AGENT_WS_PATH) {
         this.agents.wss.handleUpgrade(req, socket, head, (ws) => this.agents.wss.emit('connection', ws, req));
+      } else if (TRANSFER_WS_PATH.test(path)) {
+        void this.transfers.upgrade(req, socket, head, TRANSFER_WS_PATH.exec(path)![1]);
       } else if (CONSOLE_WS_PATH.test(path)) {
         if (!ConsoleHub.allowed(req)) return void socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
         // Consoles need a logged-in user (ADR 0006), checked before the WebSocket is accepted.

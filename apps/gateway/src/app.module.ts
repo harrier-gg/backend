@@ -14,14 +14,17 @@ import { NATS } from './nats';
 import { AgentsNatsController, NodesController, ServersController, TemplatesController } from './servers.controllers';
 import { SameOriginMiddleware } from './same-origin.middleware';
 import { WsRouter } from './ws-router';
+import { TransferHub } from './agents/transfer-hub';
+import { FilesController } from './files.controller';
 import { ContractRef } from './openapi';
 
 const config = loadConfig();
 
 @Module({
-  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController],
+  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController],
   providers: [
     AgentHub,
+    TransferHub,
     ConsoleHub,
     Sessions,
     { provide: APP_GUARD, useClass: AuthGuard },
