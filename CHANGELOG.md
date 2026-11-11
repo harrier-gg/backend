@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/harrier-gg/backend/compare/v0.2.0...v0.3.0) (2026-11-11)
+
+
+### Features
+
+* create, start and stop game servers from templates ([#10](https://github.com/harrier-gg/backend/issues/10)) ([5f815a6](https://github.com/harrier-gg/backend/commit/5f815a6eab6be9d0ac7f5cff12da0366b0fd9f36))
+* Discord login, linking and joining via invitation ([#14](https://github.com/harrier-gg/backend/issues/14)) ([e79a9a1](https://github.com/harrier-gg/backend/commit/e79a9a105d312f216a78b99e478f314f17f64e75))
+* edit config files; game settings move to the game's files ([#18](https://github.com/harrier-gg/backend/issues/18)) ([28e5f9a](https://github.com/harrier-gg/backend/commit/28e5f9a5aa0dd4f1d62d939441ffd8101cd99e03))
+* edit server settings after creating a server ([9ff7bc4](https://github.com/harrier-gg/backend/commit/9ff7bc40efb38bc2b6177645157c123bd4a69e44))
+* player list and resource history ([#15](https://github.com/harrier-gg/backend/issues/15)) ([58d0c47](https://github.com/harrier-gg/backend/commit/58d0c47b75330ca42eebe6923745025fef07a5a5))
+* register and remove nodes from the panel ([#13](https://github.com/harrier-gg/backend/issues/13)) ([2f832e3](https://github.com/harrier-gg/backend/commit/2f832e3ea96434add98c52132c410fa7cfbc6919))
+* require agent tokens for agent connections ([#8](https://github.com/harrier-gg/backend/issues/8)) ([6b17d9d](https://github.com/harrier-gg/backend/commit/6b17d9da5c09fbee2dadc38aea516cdc56159f0f))
+* roles and invitation links ([#12](https://github.com/harrier-gg/backend/issues/12)) ([25d5183](https://github.com/harrier-gg/backend/commit/25d51834c2bdd893e53b1c3bf5a56102e6e84967))
+* show pending restarts of crashed servers ([#16](https://github.com/harrier-gg/backend/issues/16)) ([f008d1f](https://github.com/harrier-gg/backend/commit/f008d1facca8849286a3036c22415775a01620fb))
+* user login with sessions and first-run setup ([#11](https://github.com/harrier-gg/backend/issues/11)) ([b2fc113](https://github.com/harrier-gg/backend/commit/b2fc113a753922f017bdc0181534f5be4c4c40bb))
+* version providers; the Java image follows the version ([#19](https://github.com/harrier-gg/backend/issues/19)) ([d042bda](https://github.com/harrier-gg/backend/commit/d042bdae020a14c55ca69f4f1a63ec7959eeffe4))
+
 ## [0.2.0](https://github.com/harrier-gg/backend/compare/harrier-backend-v0.1.0...harrier-backend-v0.2.0) (2026-11-10)
 
 
