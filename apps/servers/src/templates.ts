@@ -22,7 +22,8 @@ const ConfigField = z
     pattern: z.string().optional(),
     // Where the value goes: an environment variable or a resource limit.
     env: z.string().regex(/^[A-Z][A-Z0-9_]*$/).optional(),
-    limit: z.enum(['memory']).optional(),
+    // `sleep`: minutes without players before the server sleeps, 0 = never (ADR 0013).
+    limit: z.enum(['memory', 'sleep']).optional(),
   })
   .refine((f) => checkValue(f, f.default) === null, 'The default does not fit the field');
 
@@ -71,6 +72,8 @@ const Template = z.object({
   capabilities: z.looseObject({
     // Query protocol the agent uses for the player list (ADR 0009).
     players: z.object({ protocol: z.enum(['minecraft']) }).optional(),
+    // How players wake a sleeping server by connecting (ADR 0013); needs `players`.
+    sleep: z.object({ wake: z.enum(['minecraft']) }).optional(),
   }),
 });
 export type Template = z.infer<typeof Template>;
@@ -175,15 +178,24 @@ export function validateSettings(template: Template, input: Settings): { setting
   return { settings };
 }
 
+/** What players see while a server sleeps, in English and German (one line each). */
+export const WAKE_TEXTS = {
+  status: 'Sleeping – join to wake it up\nSchläft – zum Aufwecken beitreten',
+  join: 'Waking up – join again in a minute.\nWird geweckt – tritt in einer Minute wieder bei.',
+};
+
 /** Turns template + validated settings into the game-neutral spec the agent runs (ADR 0005). */
 export function buildSpec(template: Template, settings: Settings, hostPort: number, image = template.runtime.image): RuntimeSpec {
   const env = { ...template.runtime.env };
   let memoryMb = 1024;
+  let sleepMinutes = 0;
   for (const field of template.config) {
     const value = settings[field.key];
     if (field.env) env[field.env] = String(value);
     if (field.limit === 'memory') memoryMb = Number(value);
+    if (field.limit === 'sleep') sleepMinutes = Number(value);
   }
+  const { players, sleep } = template.capabilities;
   return {
     image,
     env,
@@ -193,6 +205,14 @@ export function buildSpec(template: Template, settings: Settings, hostPort: numb
     readyPattern: template.lifecycle.ready ?? null,
     stopTimeoutSecs: template.lifecycle.stopTimeoutSecs,
     // ponytail: the query answers on the game port; templates with a separate query port name it later
-    query: template.capabilities.players ? { protocol: template.capabilities.players.protocol, port: hostPort } : null,
+    query: players ? { protocol: players.protocol, port: hostPort } : null,
+    // Only a server whose players can be counted can tell that nobody is online.
+    sleep:
+      players && sleepMinutes > 0
+        ? {
+            idleMinutes: sleepMinutes,
+            wake: sleep ? { protocol: sleep.wake, port: hostPort, statusText: WAKE_TEXTS.status, joinText: WAKE_TEXTS.join } : null,
+          }
+        : null,
   };
 }
