@@ -13,19 +13,19 @@ const ConfigField = z
   .object({
     key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/),
     label: Localized,
-    type: z.enum(['string', 'integer', 'boolean', 'select']),
-    default: z.union([z.string(), z.number(), z.boolean()]),
+    type: z.enum(['string', 'integer']),
+    default: z.union([z.string(), z.number()]),
     min: z.number().optional(),
     max: z.number().optional(),
     pattern: z.string().optional(),
-    /** Choices of a `select` field. */
-    options: z.array(z.object({ value: z.string(), label: Localized })).min(1).optional(),
     // Where the value goes: an environment variable or a resource limit.
     env: z.string().regex(/^[A-Z][A-Z0-9_]*$/).optional(),
     limit: z.enum(['memory']).optional(),
   })
-  .refine((f) => (f.type === 'select') === (f.options !== undefined), 'A select field needs options, other fields none')
   .refine((f) => checkValue(f, f.default) === null, 'The default does not fit the field');
+
+/** A path inside the server's data directory: names separated by "/"; no name starts with "." (so no ".."). */
+const ConfigPath = z.string().regex(/^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/);
 
 /** A template file as written; variants only contain what differs from their base. */
 const TemplateFile = z.object({
@@ -45,6 +45,7 @@ const TemplateFile = z.object({
   config: z.array(ConfigField).optional(),
   lifecycle: z.object({ ready: z.string().optional(), stopTimeoutSecs: z.number().int().positive().optional() }).optional(),
   capabilities: z.record(z.string(), z.unknown()).optional(),
+  files: z.array(z.object({ path: ConfigPath, description: Localized.optional() })).optional(),
 });
 type TemplateFile = z.infer<typeof TemplateFile>;
 
@@ -58,6 +59,8 @@ const Template = z.object({
   ports: z.array(z.object({ name: z.string(), container: z.number(), protocol: z.enum(['tcp', 'udp']) })).min(1),
   config: z.array(ConfigField),
   lifecycle: z.object({ ready: z.string().optional(), stopTimeoutSecs: z.number().default(30) }),
+  // Config files owners and admins edit as text (ADR 0011).
+  files: z.array(z.object({ path: ConfigPath, description: Localized.optional() })).default([]),
   capabilities: z.looseObject({
     // Query protocol the agent uses for the player list (ADR 0009).
     players: z.object({ protocol: z.enum(['minecraft']) }).optional(),
@@ -65,8 +68,8 @@ const Template = z.object({
 });
 export type Template = z.infer<typeof Template>;
 
-export type Settings = Record<string, string | number | boolean>;
-type Field = Pick<TemplateConfigField, 'type' | 'min' | 'max' | 'pattern' | 'options'>;
+export type Settings = Record<string, string | number>;
+type Field = Pick<TemplateConfigField, 'type' | 'min' | 'max' | 'pattern'>;
 
 /** Returns why a value does not fit a field, or null if it does. Values are never converted. */
 function checkValue(field: Field, value: unknown): string | null {
@@ -76,10 +79,6 @@ function checkValue(field: Field, value: unknown): string | null {
       if (field.min !== undefined && value < field.min) return `must be at least ${field.min}`;
       if (field.max !== undefined && value > field.max) return `must be at most ${field.max}`;
       return null;
-    case 'boolean':
-      return typeof value === 'boolean' ? null : 'must be true or false';
-    case 'select':
-      return field.options?.some((o) => o.value === value) ? null : 'is not one of the options';
     case 'string':
       if (typeof value !== 'string') return 'must be text';
       return field.pattern && !new RegExp(field.pattern).test(value) ? 'has an invalid value' : null;
@@ -140,8 +139,14 @@ export class TemplateCatalog {
       game: t.game,
       variant: t.variant,
       config: t.config.map(({ env: _env, limit: _limit, ...field }): TemplateConfigField => field),
+      files: t.files,
     }));
   }
+}
+
+/** Stored settings without keys the template dropped since, so template updates never block a server. */
+export function knownSettings(template: Template, settings: Settings): Settings {
+  return Object.fromEntries(Object.entries(settings).filter(([k]) => template.config.some((f) => f.key === k)));
 }
 
 /** Applies defaults and checks every value against the template. Unknown keys are rejected. */

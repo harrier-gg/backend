@@ -17,12 +17,16 @@ export const Subjects = {
   serversStop: 'servers.stop',
   serversCommand: 'servers.command',
   serversUpdateSettings: 'servers.settings',
+  serversReadFile: 'servers.files.read',
+  serversWriteFile: 'servers.files.write',
   /** Graph data of one server (ADR 0009). */
   serversMetrics: 'servers.metrics',
   /** Gateway → servers (event): per-minute values of a node's servers. */
   metricsRecord: 'servers.metrics.record',
   /** Servers → gateway: deliver a panel message to a connected agent. */
   agentsSend: 'agents.send',
+  /** Servers → gateway: send a request to an agent and wait for its reply (ADR 0011). */
+  agentsRequest: 'agents.request',
   /** Gateway → servers (event): an agent reported something the servers service persists. */
   agentsEvent: 'agents.event',
   /** Identity (ADR 0006). */
@@ -91,13 +95,11 @@ export interface LocalizedText {
 export interface TemplateConfigField {
   key: string;
   label: LocalizedText;
-  type: 'string' | 'integer' | 'boolean' | 'select';
-  default: string | number | boolean;
+  type: 'string' | 'integer';
+  default: string | number;
   min?: number;
   max?: number;
   pattern?: string;
-  /** Choices of a `select` field. */
-  options?: { value: string; label: LocalizedText }[];
 }
 
 export interface TemplateSummary {
@@ -105,6 +107,8 @@ export interface TemplateSummary {
   game: { id: string; name: string };
   variant: { id: string; name: string; description?: LocalizedText };
   config: TemplateConfigField[];
+  /** Files owners and admins can edit, relative to the server's data directory (ADR 0011). */
+  files: { path: string; description?: LocalizedText }[];
 }
 
 export const ServerStatusSchema = z.enum(['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed']);
@@ -115,7 +119,7 @@ export interface ServerSummary {
   name: string;
   nodeId: string;
   templateId: string;
-  settings: Record<string, string | number | boolean>;
+  settings: Record<string, string | number>;
   /** Address players connect to: the node's host plus this port. */
   hostPort: number;
   status: ServerStatus;
@@ -124,7 +128,7 @@ export interface ServerSummary {
 }
 
 /** Values for a template's config fields; the servers service checks them against the template. */
-const SettingsSchema = z.record(z.string(), z.union([z.string().max(1000), z.number(), z.boolean()]));
+const SettingsSchema = z.record(z.string(), z.union([z.string().max(1000), z.number()]));
 
 export const CreateServerRequestSchema = z.object({
   nodeId: z.string().uuid(),
@@ -135,6 +139,18 @@ export const CreateServerRequestSchema = z.object({
 export type CreateServerRequest = z.infer<typeof CreateServerRequestSchema>;
 
 export const ServerIdSchema = z.object({ id: z.string().uuid() });
+
+/** Config files (ADR 0011): at most 128 KiB, so the text fits one agent message. */
+export const FILE_MAX_BYTES = 128 * 1024;
+export const ReadFileRequestSchema = ServerIdSchema.extend({ path: z.string().min(1).max(256) });
+export const WriteFileRequestSchema = ReadFileRequestSchema.extend({
+  content: z.string().refine((s) => Buffer.byteLength(s) <= FILE_MAX_BYTES, 'The file is larger than 128 KiB'),
+});
+export interface ConfigFile {
+  path: string;
+  /** null while the file does not exist, e.g. before the first start. */
+  content: string | null;
+}
 
 /** Changed settings; keys left out keep their value. They apply on the next start. */
 export const UpdateSettingsRequestSchema = ServerIdSchema.extend({ settings: SettingsSchema });
@@ -148,6 +164,11 @@ export const ServerCommandRequestSchema = z.object({
 export interface AgentsSendRequest {
   nodeId: string;
   message: unknown;
+}
+/** Reply to `agents.request`: the agent's `fileResult`, or null if it is offline or did not answer. */
+export interface AgentsRequestReply {
+  delivered: boolean;
+  result: { content: string | null; error: string | null } | null;
 }
 export interface AgentsSendReply {
   delivered: boolean;

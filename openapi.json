@@ -655,6 +655,83 @@
         ]
       }
     },
+    "/servers/{id}/files": {
+      "get": {
+        "operationId": "serversReadFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "server.properties",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigFileDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      },
+      "put": {
+        "operationId": "serversWriteFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteConfigFileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigFileDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/servers/{id}/command": {
       "post": {
         "operationId": "serversCommand",
@@ -1233,9 +1310,6 @@
                 },
                 {
                   "type": "number"
-                },
-                {
-                  "type": "boolean"
                 }
               ]
             }
@@ -1299,9 +1373,6 @@
                 },
                 {
                   "type": "number"
-                },
-                {
-                  "type": "boolean"
                 }
               ]
             }
@@ -1354,9 +1425,6 @@
                 },
                 {
                   "type": "number"
-                },
-                {
-                  "type": "boolean"
                 }
               ]
             },
@@ -1365,6 +1433,41 @@
         },
         "required": [
           "settings"
+        ]
+      },
+      "ConfigFileDto": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "server.properties"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "null while the file does not exist, e.g. before the first start"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ]
+      },
+      "WriteConfigFileDto": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "server.properties"
+          },
+          "content": {
+            "type": "string",
+            "description": "New content, at most 128 KiB"
+          }
+        },
+        "required": [
+          "path",
+          "content"
         ]
       },
       "CommandDto": {
@@ -1426,19 +1529,19 @@
           "name"
         ]
       },
-      "SelectOptionDto": {
+      "TemplateFileDto": {
         "type": "object",
         "properties": {
-          "value": {
-            "type": "string"
+          "path": {
+            "type": "string",
+            "example": "server.properties"
           },
-          "label": {
+          "description": {
             "$ref": "#/components/schemas/LocalizedTextDto"
           }
         },
         "required": [
-          "value",
-          "label"
+          "path"
         ]
       },
       "TemplateConfigFieldDto": {
@@ -1454,9 +1557,7 @@
             "type": "string",
             "enum": [
               "string",
-              "integer",
-              "boolean",
-              "select"
+              "integer"
             ]
           },
           "default": {
@@ -1466,9 +1567,6 @@
               },
               {
                 "type": "number"
-              },
-              {
-                "type": "boolean"
               }
             ]
           },
@@ -1480,13 +1578,6 @@
           },
           "pattern": {
             "type": "string"
-          },
-          "options": {
-            "description": "Choices of a select field",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SelectOptionDto"
-            }
           }
         },
         "required": [
@@ -1509,6 +1600,13 @@
           "variant": {
             "$ref": "#/components/schemas/VariantDto"
           },
+          "files": {
+            "description": "Files owners and admins can edit",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateFileDto"
+            }
+          },
           "config": {
             "type": "array",
             "items": {
@@ -1520,6 +1618,7 @@
           "id",
           "game",
           "variant",
+          "files",
           "config"
         ]
       },

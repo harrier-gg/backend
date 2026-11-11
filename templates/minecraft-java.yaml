@@ -35,44 +35,12 @@ config:
     min: 1024
     max: 32768
     limit: memory
-  - key: motd
-    label: { en: Server description, de: Serverbeschreibung }
-    type: string
-    default: A Harrier server
-    pattern: '^[^\r\n]{0,120}$'
-    env: MOTD
-  - key: gamemode
-    label: { en: Game mode, de: Spielmodus }
-    type: select
-    default: survival
-    options:
-      - { value: survival, label: { en: Survival, de: Überleben } }
-      - { value: creative, label: { en: Creative, de: Kreativ } }
-      - { value: adventure, label: { en: Adventure, de: Abenteuer } }
-      - { value: spectator, label: { en: Spectator, de: Zuschauer } }
-    env: MODE
-  - key: difficulty
-    label: { en: Difficulty, de: Schwierigkeit }
-    type: select
-    default: easy
-    options:
-      - { value: peaceful, label: { en: Peaceful, de: Friedlich } }
-      - { value: easy, label: { en: Easy, de: Einfach } }
-      - { value: normal, label: { en: Normal, de: Normal } }
-      - { value: hard, label: { en: Hard, de: Schwer } }
-    env: DIFFICULTY
-  - key: maxPlayers
-    label: { en: Max. players, de: Max. Spieler }
-    type: integer
-    default: 20
-    min: 1
-    max: 200
-    env: MAX_PLAYERS
-  - key: pvp
-    label: { en: PvP (players can hurt each other), de: PvP (Spieler können sich verletzen) }
-    type: boolean
-    default: true
-    env: PVP
+# Game settings live in the game's own files, which match the running version (ADR 0011).
+files:
+  - path: server.properties
+    description:
+      en: "Most server settings: difficulty, game mode, max. players, whitelist, view distance … Since Minecraft 1.21.9, PvP and some others are game rules: set them in the console, e.g. /gamerule pvp false."
+      de: "Die meisten Servereinstellungen: Schwierigkeit, Spielmodus, max. Spieler, Whitelist, Sichtweite … Seit Minecraft 1.21.9 sind PvP und einige andere Spielregeln: Stelle sie in der Konsole ein, z. B. /gamerule pvp false."
 lifecycle:
   ready: 'Done \([0-9.]+s\)!'
   stopTimeoutSecs: 60
