@@ -21,7 +21,7 @@ just dev     # Postgres + NATS (Docker) and all services in watch mode
 
 **First start:** the identity service logs a one-time setup link (`http://localhost:5173/setup?token=…`). Open it to create the owner account; every API route and console needs a login from then on.
 
-Connect an agent (ADR 0004):
+Connect an agent (ADR 0004): in the panel, open **Nodes → Add node** and run the command shown there. Without the panel:
 
 ```bash
 just node-create my-pc                       # prints the agent token once

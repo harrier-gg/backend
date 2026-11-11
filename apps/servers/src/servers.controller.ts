@@ -2,6 +2,9 @@ import { Controller, Inject, Logger } from '@nestjs/common';
 import { ClientProxy, EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import {
   AgentsEventSchema,
+  CreateNodeSchema,
+  NodeIdSchema,
+  type NodeCreated,
   CreateServerRequestSchema,
   ServerCommandRequestSchema,
   ServerIdSchema,
@@ -17,6 +20,7 @@ import type { PanelMessage } from '@harrier-gg/protocol';
 import { firstValueFrom, timeout } from 'rxjs';
 import type { Db } from './db';
 import { DB } from './nodes.controller';
+import { createNode } from './node-token';
 import { buildSpec, validateSettings, type Settings, type TemplateCatalog } from './templates';
 
 export const NATS = Symbol('NATS');
@@ -59,6 +63,31 @@ export class ServersController {
   async listNodes(): Promise<Reply<NodeSummary[]>> {
     const nodes = await this.db.node.findMany({ orderBy: { name: 'asc' } });
     return { data: nodes.map((n) => ({ id: n.id, name: n.name, lastSeenAt: n.lastSeenAt?.toISOString() ?? null })) };
+  }
+
+  @MessagePattern(Subjects.nodesCreate)
+  async createNode(@Payload() payload: unknown): Promise<Reply<NodeCreated>> {
+    const request = CreateNodeSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Node names have 1–64 characters: letters, digits, ".", "_", "-"');
+    try {
+      const { node, token } = await createNode(this.db, request.data.name);
+      return { data: { node: { id: node.id, name: node.name, lastSeenAt: null }, token } };
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') return fail(409, `A node named "${request.data.name}" already exists`);
+      throw error;
+    }
+  }
+
+  /** Removing a node revokes its token. Its servers must be removed first. */
+  @MessagePattern(Subjects.nodesRemove)
+  async removeNode(@Payload() payload: unknown): Promise<Reply<{ ok: true }>> {
+    const request = NodeIdSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Invalid node');
+    if ((await this.db.server.count({ where: { nodeId: request.data.id } })) > 0) {
+      return fail(409, 'The node still has servers. Remove them first.');
+    }
+    const deleted = await this.db.node.deleteMany({ where: { id: request.data.id } });
+    return deleted.count ? { data: { ok: true } } : fail(404, 'Node not found');
   }
 
   @MessagePattern(Subjects.serversList)

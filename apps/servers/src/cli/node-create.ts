@@ -2,7 +2,7 @@
 // Usage: npm run node:create --workspace @harrier-gg/servers -- --name <name>   (or: just node-create <name>)
 import { parseArgs } from 'node:util';
 import { createDb } from '../db';
-import { formatToken, newSecret } from '../node-token';
+import { createNode } from '../node-token';
 
 async function main() {
   const { values } = parseArgs({ options: { name: { type: 'string' } } });
@@ -14,11 +14,10 @@ async function main() {
 
   const db = createDb();
   try {
-    const { secret, hash } = newSecret();
-    const node = await db.node.create({ data: { name, tokenHash: hash } });
+    const { node, token } = await createNode(db, name);
     console.log(`Node "${node.name}" registered (${node.id}).`);
     console.log('\nAgent token (shown only once, store it now):\n');
-    console.log(`  ${formatToken(node.id, secret)}\n`);
+    console.log(`  ${token}\n`);
     console.log('Start the agent with:  HARRIER_AGENT_TOKEN=<token> harrier agent run --panel <ws-url>');
   } catch (error) {
     if ((error as { code?: string }).code === 'P2002') {

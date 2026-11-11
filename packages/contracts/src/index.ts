@@ -7,6 +7,8 @@ export const Subjects = {
   /** Gateway → servers: is this agent token valid? (ADR 0004) */
   nodesAuthenticate: 'nodes.authenticate',
   nodesList: 'nodes.list',
+  nodesCreate: 'nodes.create',
+  nodesRemove: 'nodes.remove',
   templatesList: 'templates.list',
   serversList: 'servers.list',
   serversGet: 'servers.get',
@@ -60,6 +62,16 @@ export interface NodeSummary {
   id: string;
   name: string;
   lastSeenAt: string | null;
+}
+
+export const NodeNameSchema = z.string().regex(/^[A-Za-z0-9._-]{1,64}$/);
+export const CreateNodeSchema = z.object({ name: NodeNameSchema });
+export const NodeIdSchema = z.object({ id: z.string().uuid() });
+
+/** Returned once when a node is registered: the agent token is never shown again (ADR 0004). */
+export interface NodeCreated {
+  node: NodeSummary;
+  token: string;
 }
 
 /** Text in English and German (ADR 0003); `en` is always present. */

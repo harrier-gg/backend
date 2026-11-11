@@ -634,6 +634,58 @@
         "tags": [
           "nodes"
         ]
+      },
+      "post": {
+        "operationId": "nodesCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeCreatedDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
+    "/nodes/{id}": {
+      "delete": {
+        "operationId": "nodesRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "nodes"
+        ]
       }
     }
   },
@@ -1271,6 +1323,35 @@
           "name",
           "lastSeenAt",
           "online"
+        ]
+      },
+      "CreateNodeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "gaming-pc",
+            "description": "1–64 characters: letters, digits, \".\", \"_\", \"-\""
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "NodeCreatedDto": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "$ref": "#/components/schemas/NodeDto"
+          },
+          "token": {
+            "type": "string",
+            "description": "Agent token (HARRIER_AGENT_TOKEN). Shown only once."
+          }
+        },
+        "required": [
+          "node",
+          "token"
         ]
       }
     }
