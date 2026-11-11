@@ -23,8 +23,8 @@ const DAY = 24 * 60 * 60 * 1000;
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
-const fail = (status: number, detail: string) => ({ error: { status, detail } });
-const toUser = (u: { id: string; email: string; name: string; role: UserSummary['role'] }): UserSummary => ({
+export const fail = (status: number, detail: string) => ({ error: { status, detail } });
+export const toUser = (u: { id: string; email: string; name: string; role: UserSummary['role'] }): UserSummary => ({
   id: u.id,
   email: u.email,
   name: u.name,
@@ -84,7 +84,7 @@ export class IdentityController {
       );
       this.setupToken.token = null;
       this.logger.log(`Owner account created for ${user.email}`);
-      return { data: await this.createSession(user) };
+      return { data: await createSession(this.db, user) };
     } catch {
       this.setupToken.token = null;
       return fail(409, 'Harrier is already set up');
@@ -113,7 +113,7 @@ export class IdentityController {
       return invalid;
     }
     this.failedLogins.delete(email);
-    return { data: await this.createSession(user) };
+    return { data: await createSession(this.db, user) };
   }
 
   @MessagePattern(Subjects.identityLogout)
@@ -147,10 +147,12 @@ export class IdentityController {
     return { data: { user: toUser(session.user), expiresAt: expiresAt.toISOString(), renewed } };
   }
 
-  private async createSession(user: Parameters<typeof toUser>[0]): Promise<SessionCreated> {
-    const { token, hash } = newToken();
-    const expiresAt = new Date(Date.now() + SESSION_DAYS * DAY);
-    await this.db.session.create({ data: { userId: user.id, tokenHash: hash, expiresAt } });
-    return { sessionToken: token, expiresAt: expiresAt.toISOString(), user: toUser(user) };
-  }
+}
+
+/** Creates a session for a user and returns the token for the cookie (ADR 0006). */
+export async function createSession(db: Db, user: Parameters<typeof toUser>[0]): Promise<SessionCreated> {
+  const { token, hash } = newToken();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * DAY);
+  await db.session.create({ data: { userId: user.id, tokenHash: hash, expiresAt } });
+  return { sessionToken: token, expiresAt: expiresAt.toISOString(), user: toUser(user) };
 }

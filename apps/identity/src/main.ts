@@ -6,6 +6,7 @@ import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { config } from './config';
 import { createDb } from './db';
 import { DB, IdentityController, SetupToken } from './identity.controller';
+import { InvitesController } from './invites.controller';
 import { VERSION } from './version';
 
 @Controller()
@@ -17,7 +18,7 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, IdentityController],
+  controllers: [HealthController, IdentityController, InvitesController],
   providers: [{ provide: DB, useFactory: createDb }, SetupToken],
 })
 class AppModule {}

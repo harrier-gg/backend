@@ -1,12 +1,16 @@
-import { CanActivate, ExecutionContext, Injectable, SetMetadata, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, SetMetadata, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { UserSummary } from '@harrier-gg/contracts';
+import { can, type Permission, type UserSummary } from '@harrier-gg/contracts';
 import type { Request, Response } from 'express';
 import { cookieOptions, readCookie, SESSION_COOKIE, Sessions } from './session';
 
 const PUBLIC = 'harrier:public';
 /** Marks a route as reachable without login (health, meta, login itself). */
 export const Public = () => SetMetadata(PUBLIC, true);
+
+const PERMISSION = 'harrier:permission';
+/** Requires a permission from the role table (ADR 0007). Without it, any logged-in user may call the route. */
+export const Allow = (permission: Permission) => SetMetadata(PERMISSION, permission);
 
 export type AuthedRequest = Request & { user: UserSummary };
 
@@ -27,6 +31,8 @@ export class AuthGuard implements CanActivate {
     if (!session) throw new UnauthorizedException('Please log in');
 
     (req as AuthedRequest).user = session.user;
+    const permission = this.reflector.getAllAndOverride<Permission | undefined>(PERMISSION, [context.getHandler(), context.getClass()]);
+    if (permission && !can(session.user.role, permission)) throw new ForbiddenException('Your role does not allow this');
     // Sliding sessions: when the identity service extended the session, the cookie follows.
     if (session.renewed) {
       const res = context.switchToHttp().getResponse<Response>();

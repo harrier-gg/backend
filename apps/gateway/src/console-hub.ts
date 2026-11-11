@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { Subjects, type Reply, type ServerStatus, type ServerSummary } from '@harrier-gg/contracts';
+import { can, Subjects, type Reply, type ServerStatus, type ServerSummary, type UserSummary } from '@harrier-gg/contracts';
 import type { ServerStats } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
@@ -43,7 +43,7 @@ export class ConsoleHub {
   readonly wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
 
   constructor(@Inject(NATS) private readonly nats: ClientProxy) {
-    this.wss.on('connection', (socket, req) => void this.accept(socket, req));
+    this.wss.on('connection', (socket: WebSocket, req: IncomingMessage, user: UserSummary) => void this.accept(socket, req, user));
   }
 
   private channel(nodeId: string, serverId: string): Channel | null {
@@ -99,7 +99,7 @@ export class ConsoleHub {
     }
   }
 
-  private async accept(socket: WebSocket, req: IncomingMessage) {
+  private async accept(socket: WebSocket, req: IncomingMessage, user: UserSummary) {
     const serverId = CONSOLE_WS_PATH.exec(new URL(req.url ?? '', 'http://x').pathname)?.[1];
     const reply = await firstValueFrom(
       this.nats.send<Reply<ServerSummary>>(Subjects.serversGet, { id: serverId }).pipe(timeout(3000)),
@@ -126,6 +126,8 @@ export class ConsoleHub {
     );
 
     socket.on('message', (raw) => {
+      // Everyone may watch; only roles with "sendCommands" may type (ADR 0007).
+      if (!can(user.role, 'sendCommands')) return;
       let command: unknown;
       try {
         command = (JSON.parse(raw.toString()) as { type?: string; command?: unknown }).command;

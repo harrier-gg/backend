@@ -5,6 +5,7 @@ import { AgentHub } from './agents/agent-hub';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
 import { Sessions } from './auth/session';
+import { UsersController } from './auth/users.controller';
 import { loadConfig } from './config';
 import { ConsoleHub } from './console-hub';
 import { AgentsController, SystemController } from './controllers';
@@ -17,7 +18,7 @@ import { ContractRef } from './openapi';
 const config = loadConfig();
 
 @Module({
-  controllers: [AuthController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController],
+  controllers: [AuthController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController],
   providers: [
     AgentHub,
     ConsoleHub,

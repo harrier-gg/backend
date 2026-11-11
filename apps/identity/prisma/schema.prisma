@@ -29,6 +29,7 @@ model User {
   role         Role      @default(member)
   createdAt    DateTime  @default(now()) @map("created_at")
   sessions     Session[]
+  invites      Invite[]  @relation("InvitesCreated")
 
   @@map("users")
   @@schema("identity")
@@ -45,5 +46,22 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+  @@schema("identity")
+}
+
+/// Single-use invitation link (ADR 0007).
+model Invite {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  /// SHA-256 of the token in the link.
+  tokenHash   Bytes     @unique @map("token_hash")
+  role        Role
+  createdById String    @map("created_by_id") @db.Uuid
+  createdBy   User      @relation("InvitesCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  expiresAt   DateTime  @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  usedById    String?   @map("used_by_id") @db.Uuid
+
+  @@map("invites")
   @@schema("identity")
 }

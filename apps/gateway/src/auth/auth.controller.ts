@@ -1,11 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpException, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Query, Req, Res } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiBody, ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { Subjects, type Reply, type Role, type SessionCreated, type UserSummary } from '@harrier-gg/contracts';
+import { Permissions, can, Subjects, type Permission, type Role, type SessionCreated, type UserSummary } from '@harrier-gg/contracts';
 import type { Request, Response } from 'express';
-import { firstValueFrom, timeout } from 'rxjs';
 import { NATS } from '../nats';
 import { Public, type AuthedRequest } from './auth.guard';
+import { callIdentity as call } from './users.controller';
 import { cookieOptions, readCookie, SESSION_COOKIE } from './session';
 
 class UserDto implements UserSummary {
@@ -13,6 +13,24 @@ class UserDto implements UserSummary {
   @ApiProperty() email!: string;
   @ApiProperty() name!: string;
   @ApiProperty({ enum: ['owner', 'admin', 'member'] }) role!: Role;
+}
+
+const PERMISSIONS = Object.keys(Permissions) as Permission[];
+
+class MeDto extends UserDto {
+  @ApiProperty({ enum: PERMISSIONS, isArray: true, description: 'What this user may do (ADR 0007); the web hides the rest' })
+  permissions!: Permission[];
+}
+
+class InviteCheckDto {
+  @ApiProperty({ enum: ['admin', 'member'] }) role!: Role;
+}
+
+class AcceptInviteDto {
+  @ApiProperty({ description: 'Token from the invitation link' }) token!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() email!: string;
+  @ApiProperty({ minLength: 10 }) password!: string;
 }
 
 class SetupStatusDto {
@@ -29,14 +47,6 @@ class SetupDto {
 class LoginDto {
   @ApiProperty() email!: string;
   @ApiProperty() password!: string;
-}
-
-async function call<T>(nats: ClientProxy, subject: string, payload: unknown): Promise<T> {
-  const reply = await firstValueFrom(nats.send<Reply<T>>(subject, payload).pipe(timeout(10_000))).catch(() => {
-    throw new HttpException('The identity service is unavailable', 503);
-  });
-  if ('error' in reply) throw new HttpException(reply.error.detail, reply.error.status);
-  return reply.data;
 }
 
 @ApiTags('auth')
@@ -80,9 +90,27 @@ export class AuthController {
   }
 
   @Get('me')
+  @ApiOkResponse({ type: MeDto })
+  me(@Req() req: AuthedRequest): MeDto {
+    return { ...req.user, permissions: PERMISSIONS.filter((p) => can(req.user.role, p)) };
+  }
+
+  /** Public: the invitation page shows which role the link gives before signing up. */
+  @Public()
+  @Get('invites/check')
+  @ApiOkResponse({ type: InviteCheckDto })
+  checkInvite(@Query('token') token: string): Promise<InviteCheckDto> {
+    return call(this.nats, Subjects.invitesCheck, { token: String(token ?? '') });
+  }
+
+  /** Public: creates the account from an invitation and logs the person in. */
+  @Public()
+  @Post('invites/accept')
+  @HttpCode(200)
+  @ApiBody({ type: AcceptInviteDto })
   @ApiOkResponse({ type: UserDto })
-  me(@Req() req: AuthedRequest): UserDto {
-    return req.user;
+  async acceptInvite(@Body() body: AcceptInviteDto, @Res({ passthrough: true }) res: Response): Promise<UserDto> {
+    return this.startSession(await call<SessionCreated>(this.nats, Subjects.invitesAccept, body), res);
   }
 
   private startSession(created: SessionCreated, res: Response): UserDto {

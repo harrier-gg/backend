@@ -30,7 +30,7 @@ export class WsRouter implements OnApplicationBootstrap {
         // Consoles need a logged-in user (ADR 0006), checked before the WebSocket is accepted.
         void this.sessions.fromRequest(req).then((session) => {
           if (!session) return void socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n');
-          this.consoles.wss.handleUpgrade(req, socket, head, (ws) => this.consoles.wss.emit('connection', ws, req));
+          this.consoles.wss.handleUpgrade(req, socket, head, (ws) => this.consoles.wss.emit('connection', ws, req, session.user));
         });
       } else {
         socket.end('HTTP/1.1 404 Not Found\r\n\r\n');

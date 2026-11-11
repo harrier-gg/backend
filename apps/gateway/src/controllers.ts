@@ -4,7 +4,7 @@ import { ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { firstValueFrom, timeout } from 'rxjs';
 import { AgentHub } from './agents/agent-hub';
-import { Public } from './auth/auth.guard';
+import { Allow, Public } from './auth/auth.guard';
 import { ContractRef } from './openapi';
 import { NATS } from './nats';
 import { VERSION } from './version';
@@ -64,6 +64,7 @@ export class SystemController {
 }
 
 @ApiTags('agents')
+@Allow('manageServers')
 @Controller('agents')
 export class AgentsController {
   constructor(private readonly hub: AgentHub) {}

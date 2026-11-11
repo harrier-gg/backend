@@ -15,6 +15,7 @@ import {
 import type { PanelMessage } from '@harrier-gg/protocol';
 import { firstValueFrom, timeout } from 'rxjs';
 import { AgentHub } from './agents/agent-hub';
+import { Allow } from './auth/auth.guard';
 import { NATS } from './nats';
 
 const STATUSES: ServerStatus[] = ['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed'];
@@ -104,6 +105,7 @@ export class TemplatesController {
 }
 
 @ApiTags('nodes')
+@Allow('manageServers')
 @Controller('nodes')
 export class NodesController {
   constructor(
@@ -131,6 +133,7 @@ export class ServersController {
   }
 
   @Post('servers')
+  @Allow('manageServers')
   @ApiBody({ type: CreateServerDto })
   @ApiOkResponse({ type: ServerDto })
   @HttpCode(200)
@@ -145,6 +148,7 @@ export class ServersController {
   }
 
   @Post('servers/:id/start')
+  @Allow('startStopServers')
   @ApiOkResponse({ type: ServerDto })
   @HttpCode(200)
   start(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
@@ -152,6 +156,7 @@ export class ServersController {
   }
 
   @Post('servers/:id/stop')
+  @Allow('startStopServers')
   @ApiOkResponse({ type: ServerDto })
   @HttpCode(200)
   stop(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
@@ -159,6 +164,7 @@ export class ServersController {
   }
 
   @Post('servers/:id/command')
+  @Allow('sendCommands')
   @ApiBody({ type: CommandDto })
   @ApiOkResponse({ type: ServerDto })
   @HttpCode(200)
