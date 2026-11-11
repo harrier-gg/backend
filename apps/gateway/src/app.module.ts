@@ -16,12 +16,13 @@ import { SameOriginMiddleware } from './same-origin.middleware';
 import { WsRouter } from './ws-router';
 import { TransferHub } from './agents/transfer-hub';
 import { BackupsController, FilesController } from './files.controller';
+import { ContentController } from './content.controller';
 import { ContractRef } from './openapi';
 
 const config = loadConfig();
 
 @Module({
-  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController, BackupsController],
+  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController, BackupsController, ContentController],
   providers: [
     AgentHub,
     TransferHub,

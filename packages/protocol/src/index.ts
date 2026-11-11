@@ -5,6 +5,7 @@ export type * from './generated/BackupRef';
 export type * from './generated/BackupResult';
 export type * from './generated/ConsoleOutput';
 export type * from './generated/CreateBackup';
+export type * from './generated/DownloadFile';
 export type * from './generated/EntryKind';
 export type * from './generated/FileEntry';
 export type * from './generated/FileResult';

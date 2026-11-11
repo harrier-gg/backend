@@ -79,13 +79,13 @@ export class AgentHub implements OnApplicationShutdown {
    * Sends a request (a panel message with `requestId`) to a node's agent and waits for the
    * `fileResult` with the same id (ADR 0011). Only the node's own agent can answer it.
    */
-  request(nodeId: string, message: PanelMessage & { requestId: string }): Promise<AgentsRequestReply> {
+  request(nodeId: string, message: PanelMessage & { requestId: string }, timeoutMs = REQUEST_TIMEOUT_MS): Promise<AgentsRequestReply> {
     if (!this.send(nodeId, message)) return Promise.resolve({ delivered: false, result: null });
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(message.requestId);
         resolve({ delivered: true, result: null });
-      }, REQUEST_TIMEOUT_MS);
+      }, timeoutMs);
       this.pending.set(message.requestId, {
         nodeId,
         resolve: (result) => {

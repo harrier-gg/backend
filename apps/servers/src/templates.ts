@@ -30,6 +30,14 @@ const ConfigField = z
 /** A path inside the server's data directory: names separated by "/"; no name starts with "." (so no ".."). */
 const ConfigPath = z.string().regex(/^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/);
 
+/** A kind of content and where to get it (ADR 0017); each source's options belong to its provider. */
+const ContentKind = z.object({
+  kind: z.string().regex(/^[a-z][a-z-]{0,39}$/),
+  label: Localized,
+  path: ConfigPath,
+  sources: z.array(z.looseObject({ provider: z.string().regex(/^[a-z][a-z-]{0,39}$/) })).min(1),
+});
+
 /** Image per Java major version, so a game version gets the Java it needs (ADR 0012). */
 const JavaImages = z.record(z.string().regex(/^[0-9]+$/), z.string());
 
@@ -46,6 +54,7 @@ const TemplateFile = z.object({
     .object({ image: z.string().optional(), env: z.record(z.string(), z.string()).optional(), java: JavaImages.optional() })
     .optional(),
   versions: z.object({ provider: z.enum(PROVIDERS) }).optional(),
+  content: z.array(ContentKind).optional(),
   ports: z
     .array(z.object({ name: z.string(), container: z.number().int().min(1).max(65535), protocol: z.enum(['tcp', 'udp']) }))
     .optional(),
@@ -64,6 +73,7 @@ const Template = z.object({
   install: z.object({ method: z.literal('image') }), // M1 only runs image-based templates
   runtime: z.object({ image: z.string(), env: z.record(z.string(), z.string()), java: JavaImages.optional() }),
   versions: z.object({ provider: z.enum(PROVIDERS) }).optional(),
+  content: z.array(ContentKind).default([]),
   ports: z.array(z.object({ name: z.string(), container: z.number(), protocol: z.enum(['tcp', 'udp']) })).min(1),
   config: z.array(ConfigField),
   lifecycle: z.object({ ready: z.string().optional(), stopTimeoutSecs: z.number().default(30) }),
@@ -164,6 +174,7 @@ export class TemplateCatalog {
       variant: t.variant,
       config: t.config.map(({ env: _env, limit: _limit, ...field }): TemplateConfigField => field),
       files: t.files,
+      content: t.content.map((c) => ({ kind: c.kind, label: c.label, path: c.path, sources: c.sources.map((s) => s.provider) })),
     }));
   }
 }

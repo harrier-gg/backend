@@ -67,6 +67,13 @@ class VersionListDto implements VersionList {
   @ApiProperty({ type: [GameVersionDto], description: 'Newest first' }) versions!: GameVersionDto[];
 }
 
+class ContentKindDto {
+  @ApiProperty({ example: 'mod' }) kind!: string;
+  @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
+  @ApiProperty({ example: 'mods' }) path!: string;
+  @ApiProperty({ type: [String], example: ['modrinth'], description: 'Providers to search' }) sources!: string[];
+}
+
 class NamedDto {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
@@ -81,6 +88,7 @@ class TemplateDto implements TemplateSummary {
   @ApiProperty({ type: NamedDto }) game!: NamedDto;
   @ApiProperty({ type: VariantDto }) variant!: VariantDto;
   @ApiProperty({ type: [TemplateFileDto], description: 'Files owners and admins can edit' }) files!: TemplateFileDto[];
+  @ApiProperty({ type: [ContentKindDto], description: 'Content that can be installed (ADR 0017)' }) content!: ContentKindDto[];
   @ApiProperty({ type: [TemplateConfigFieldDto] }) config!: TemplateConfigFieldDto[];
 }
 
@@ -297,7 +305,9 @@ export class AgentsNatsController {
   // ponytail: one gateway instance; with several, route by node (e.g. subject per node)
   @MessagePattern(Subjects.agentsRequest)
   request(@Payload() payload: AgentsSendRequest): Promise<AgentsRequestReply> {
-    return this.agents.request(payload.nodeId, payload.message as PanelMessage & { requestId: string });
+    // Downloads (ADR 0017) take longer than other requests; never more than 5 minutes.
+    const ms = Math.min(Number(payload.timeoutMs) || 10_000, 300_000);
+    return this.agents.request(payload.nodeId, payload.message as PanelMessage & { requestId: string }, ms);
   }
 
   @MessagePattern(Subjects.agentsSend)

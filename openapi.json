@@ -1304,6 +1304,168 @@
           "backups"
         ]
       }
+    },
+    "/servers/{id}/content": {
+      "get": {
+        "operationId": "contentList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstalledContentDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "content"
+        ]
+      },
+      "post": {
+        "operationId": "contentInstall",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstalledContentDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/servers/{id}/content/search": {
+      "get": {
+        "operationId": "contentSearch",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "mod",
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "modrinth",
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContentProjectDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/servers/{id}/content/{contentId}": {
+      "delete": {
+        "operationId": "contentRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "content"
+        ]
+      }
     }
   },
   "info": {
@@ -1978,6 +2140,38 @@
           "path"
         ]
       },
+      "ContentKindDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "example": "mod"
+          },
+          "label": {
+            "$ref": "#/components/schemas/LocalizedTextDto"
+          },
+          "path": {
+            "type": "string",
+            "example": "mods"
+          },
+          "sources": {
+            "example": [
+              "modrinth"
+            ],
+            "description": "Providers to search",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "path",
+          "sources"
+        ]
+      },
       "TemplateConfigFieldDto": {
         "type": "object",
         "properties": {
@@ -2043,6 +2237,13 @@
               "$ref": "#/components/schemas/TemplateFileDto"
             }
           },
+          "content": {
+            "description": "Content that can be installed (ADR 0017)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentKindDto"
+            }
+          },
           "config": {
             "type": "array",
             "items": {
@@ -2055,6 +2256,7 @@
           "game",
           "variant",
           "files",
+          "content",
           "config"
         ]
       },
@@ -2288,6 +2490,133 @@
         },
         "required": [
           "name"
+        ]
+      },
+      "InstalledContentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "example": "mod"
+          },
+          "provider": {
+            "type": "string",
+            "example": "modrinth"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "example": "mods/fabric-api.jar"
+          },
+          "side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "server",
+              "client",
+              "both"
+            ]
+          },
+          "dependency": {
+            "type": "boolean",
+            "description": "Installed because another project needs it"
+          },
+          "installedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "provider",
+          "projectId",
+          "name",
+          "version",
+          "path",
+          "side",
+          "dependency",
+          "installedAt"
+        ]
+      },
+      "ContentProjectDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "downloads": {
+            "type": "number"
+          },
+          "iconUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageUrl": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "server",
+              "client",
+              "both"
+            ],
+            "description": "client: only players need it"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "summary",
+          "author",
+          "downloads",
+          "iconUrl",
+          "pageUrl",
+          "side"
+        ]
+      },
+      "InstallDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "example": "mod"
+          },
+          "source": {
+            "type": "string",
+            "example": "modrinth"
+          },
+          "projectId": {
+            "type": "string",
+            "example": "P7dR8mSH"
+          }
+        },
+        "required": [
+          "kind",
+          "source",
+          "projectId"
         ]
       }
     }

@@ -9,6 +9,8 @@ import { createDb } from './db';
 import { DB, NodesController } from './nodes.controller';
 import { NATS, ServersController, TEMPLATES, VERSIONS } from './servers.controller';
 import { BackupsController } from './backups.controller';
+import { CONTENT, ContentController } from './content.controller';
+import { providers } from './content';
 import { VersionProviders } from './versions';
 import { TemplateCatalog } from './templates';
 import { VERSION } from './version';
@@ -22,12 +24,13 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, NodesController, ServersController, BackupsController],
+  controllers: [HealthController, NodesController, ServersController, BackupsController, ContentController],
   providers: [
     { provide: DB, useFactory: createDb },
     { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } }) },
     // Official templates ship with the backend for now; they move to the templates repository later.
     { provide: VERSIONS, useFactory: () => new VersionProviders() },
+    { provide: CONTENT, useFactory: () => providers() },
     { provide: TEMPLATES, useFactory: () => TemplateCatalog.fromDirectory(config.HARRIER_TEMPLATES_DIR ?? join(__dirname, '../../../templates')) },
   ],
 })

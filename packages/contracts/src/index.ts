@@ -20,6 +20,10 @@ export const Subjects = {
   serversUpdateSettings: 'servers.settings',
   serversReadFile: 'servers.files.read',
   serversListDir: 'servers.files.list',
+  serversContentList: 'servers.content.list',
+  serversContentSearch: 'servers.content.search',
+  serversContentInstall: 'servers.content.install',
+  serversContentRemove: 'servers.content.remove',
   serversBackups: 'servers.backups',
   serversBackupCreate: 'servers.backups.create',
   serversBackupDelete: 'servers.backups.delete',
@@ -136,6 +140,8 @@ export interface TemplateSummary {
   config: TemplateConfigField[];
   /** Files owners and admins can edit, relative to the server's data directory (ADR 0011). */
   files: { path: string; description?: LocalizedText }[];
+  /** Kinds of content that can be installed, with the providers to search (ADR 0017). */
+  content: { kind: string; label: LocalizedText; path: string; sources: string[] }[];
 }
 
 /** `sleeping`: stopped because nobody was online; joining or starting wakes it (ADR 0013). */
@@ -180,6 +186,42 @@ export const ReadFileRequestSchema = ServerIdSchema.extend({ path: FilePathSchem
 /** `path` "" is the data directory itself. */
 export const ListDirRequestSchema = ServerIdSchema.extend({ path: z.union([z.literal(''), FilePathSchema]) });
 export const MovePathRequestSchema = ServerIdSchema.extend({ from: FilePathSchema, to: FilePathSchema });
+
+// ---- Content: mods, plugins, … (ADR 0017) ----
+
+/** Where content is needed: on the server, by the players, or both. */
+export type ContentSide = 'server' | 'client' | 'both';
+
+export interface ContentProject {
+  id: string;
+  name: string;
+  summary: string;
+  author: string;
+  downloads: number;
+  iconUrl: string | null;
+  pageUrl: string;
+  side: ContentSide | null;
+}
+
+export interface InstalledContent {
+  id: string;
+  kind: string;
+  provider: string;
+  projectId: string;
+  name: string;
+  version: string;
+  /** Relative to the server's data directory. */
+  path: string;
+  side: ContentSide | null;
+  /** Installed because another project needs it. */
+  dependency: boolean;
+  installedAt: string;
+}
+
+const ContentRef = ServerIdSchema.extend({ kind: z.string().regex(/^[a-z][a-z-]{0,39}$/), source: z.string().regex(/^[a-z][a-z-]{0,39}$/) });
+export const ContentSearchSchema = ContentRef.extend({ query: z.string().max(100).default('') });
+export const ContentInstallSchema = ContentRef.extend({ projectId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) });
+export const ContentRemoveSchema = ServerIdSchema.extend({ contentId: z.string().uuid() });
 
 // ---- Backups (ADR 0016) ----
 
@@ -234,6 +276,8 @@ export const ServerCommandRequestSchema = z.object({
 export interface AgentsSendRequest {
   nodeId: string;
   message: unknown;
+  /** `agents.request` only: how long to wait for the reply (default 10 s, at most 5 min). */
+  timeoutMs?: number;
 }
 /** Reply to `agents.request`: the agent's `fileResult`, or null if it is offline or did not answer. */
 export interface AgentsRequestReply {
