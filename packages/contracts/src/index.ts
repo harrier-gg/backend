@@ -34,6 +34,9 @@ export const Subjects = {
   usersList: 'identity.users.list',
   usersUpdateRole: 'identity.users.updateRole',
   usersRemove: 'identity.users.remove',
+  discordEnabled: 'identity.discord.enabled',
+  discordStart: 'identity.discord.start',
+  discordCallback: 'identity.discord.callback',
 } as const;
 
 /**
@@ -159,6 +162,8 @@ export interface UserSummary {
   email: string;
   name: string;
   role: Role;
+  /** Display name of the linked Discord account (ADR 0008), or null. */
+  discord: string | null;
 }
 
 /** Returned on setup and login. The token goes into the session cookie and nowhere else. */
@@ -243,3 +248,22 @@ export type Permission = keyof typeof Permissions;
 export function can(role: Role, permission: Permission): boolean {
   return (Permissions[permission] as readonly Role[]).includes(role);
 }
+
+// ---- Discord login (ADR 0008) ----
+
+export const DiscordStartSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('login') }),
+  z.object({ mode: z.literal('link'), actorId: z.string().uuid() }),
+  z.object({ mode: z.literal('invite'), inviteToken: z.string().max(100) }),
+]);
+export type DiscordStart = z.infer<typeof DiscordStartSchema>;
+
+export const DiscordCallbackSchema = z.object({ state: z.string().max(100), code: z.string().max(500) });
+
+/** Errors the web shows after returning from Discord (`/?auth_error=<code>`). */
+export type DiscordError = 'state' | 'not_linked' | 'taken' | 'invite' | 'email' | 'failed';
+
+export type DiscordResult =
+  | { session: SessionCreated }
+  | { linked: true }
+  | { error: DiscordError };

@@ -4,6 +4,7 @@ import { ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { AgentHub } from './agents/agent-hub';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
+import { DiscordController } from './auth/discord.controller';
 import { Sessions } from './auth/session';
 import { UsersController } from './auth/users.controller';
 import { loadConfig } from './config';
@@ -18,7 +19,7 @@ import { ContractRef } from './openapi';
 const config = loadConfig();
 
 @Module({
-  controllers: [AuthController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController],
+  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController],
   providers: [
     AgentHub,
     ConsoleHub,

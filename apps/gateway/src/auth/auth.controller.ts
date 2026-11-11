@@ -13,6 +13,7 @@ class UserDto implements UserSummary {
   @ApiProperty() email!: string;
   @ApiProperty() name!: string;
   @ApiProperty({ enum: ['owner', 'admin', 'member'] }) role!: Role;
+  @ApiProperty({ type: String, nullable: true, description: 'Display name of the linked Discord account' }) discord!: string | null;
 }
 
 const PERMISSIONS = Object.keys(Permissions) as Permission[];
