@@ -49,8 +49,26 @@ function harrier(nats: ClientProxy): Harrier {
 /** The Discord connection; null while no bot token is configured. */
 interface Bot {
   api: API;
-  /** The language of the notification channel's Discord server. */
+  /** The language of the notification channel's Discord server, once known. */
   locale?: string;
+  /** The language of whoever used a command last; notifications prefer it. */
+  recentLocale?: string;
+}
+
+/**
+ * The language for notifications: that of whoever used a command last, since Discord only lets
+ * community servers choose a preferred language (others always say en-US). Before anyone used a
+ * command, the server's preferred language, asked when the first message is due, so a bot invited
+ * after it started still finds it.
+ */
+async function channelLocale(bot: Bot, channelId: string): Promise<string | undefined> {
+  if (bot.recentLocale) return bot.recentLocale;
+  if (bot.locale) return bot.locale;
+  const channel = await bot.api.channels.get(channelId).catch(() => null);
+  const guildId = channel && 'guild_id' in channel ? channel.guild_id : undefined;
+  if (!guildId) return undefined;
+  bot.locale = (await bot.api.guilds.get(guildId).catch(() => null))?.preferred_locale;
+  return bot.locale;
 }
 
 /** Connects to Discord's gateway (outbound, works behind NAT) and answers slash commands. */
@@ -64,12 +82,10 @@ async function connect(token: string, harrier: Harrier): Promise<Bot> {
   client.once(GatewayDispatchEvents.Ready, async ({ data }) => {
     await client.api.applicationCommands.bulkOverwriteGlobalCommands(data.application.id, COMMANDS);
     log.log(`Logged in as ${data.user.username}; commands registered`);
+    // View Channel + Send Messages, for the notifications.
     log.log(`Invite: https://discord.com/oauth2/authorize?client_id=${data.application.id}&scope=bot+applications.commands&permissions=3072`);
-    if (config.HARRIER_DISCORD_CHANNEL_ID) {
-      const channel = await client.api.channels.get(config.HARRIER_DISCORD_CHANNEL_ID).catch(() => null);
-      const guildId = channel && 'guild_id' in channel ? channel.guild_id : undefined;
-      if (!guildId) log.warn('HARRIER_DISCORD_CHANNEL_ID is not a channel the bot can see; no notifications');
-      else bot.locale = (await client.api.guilds.get(guildId)).preferred_locale;
+    if (config.HARRIER_DISCORD_CHANNEL_ID && !(await channelLocale(bot, config.HARRIER_DISCORD_CHANNEL_ID))) {
+      log.warn('The bot cannot see HARRIER_DISCORD_CHANNEL_ID yet; invite it to that Discord server');
     }
   });
 
@@ -78,6 +94,7 @@ async function connect(token: string, harrier: Harrier): Promise<Bot> {
       const discordId = interaction.member?.user.id ?? interaction.user?.id;
       if (!discordId) return;
       if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
+        log.debug(`Autocomplete for /${interaction.data.name} from ${discordId}`);
         const focused = interaction.data.options.find((o) => 'focused' in o && o.focused);
         const typed = focused && 'value' in focused ? String(focused.value) : '';
         // Only linked accounts see server names.
@@ -85,8 +102,12 @@ async function connect(token: string, harrier: Harrier): Promise<Bot> {
         await api.interactions.createAutocompleteResponse(interaction.id, interaction.token, { choices });
         return;
       }
-      if (interaction.type !== InteractionType.ApplicationCommand || !('options' in interaction.data)) return;
-      const server = interaction.data.options?.find((o) => o.name === 'server');
+      if (interaction.type !== InteractionType.ApplicationCommand) return;
+      log.debug(`/${interaction.data.name} from ${discordId}`);
+      bot.recentLocale = interaction.locale;
+      // Commands without options (like /status) have no `options` at all.
+      const options = 'options' in interaction.data ? interaction.data.options : undefined;
+      const server = options?.find((o) => o.name === 'server');
       const call = { discordId, locale: interaction.locale, server: server && 'value' in server ? String(server.value) : undefined };
       // Commands may wait for the agent; deferring gives them 15 minutes instead of 3 seconds.
       // Public by default; an error is then shown to everyone, which is fine for a group of friends.
@@ -129,7 +150,7 @@ class NotificationsController {
 
     const reply = await firstValueFrom(this.nats.send<Reply<ServerSummary>>(Subjects.serversGet, { id: serverId }).pipe(timeout(5000))).catch(() => null);
     if (!reply || !('data' in reply)) return;
-    const t = texts(this.bot.locale);
+    const t = texts(await channelLocale(this.bot, channel));
     const content = kind === 'online' ? t.online(reply.data.name, reply.data.hostPort) : t.crashed(reply.data.name, message ?? t.status.crashed);
     await this.bot.api.channels.createMessage(channel, { content, ...NO_MENTIONS }).catch((e: Error) => log.warn(`Notification failed: ${e.message}`));
   }
