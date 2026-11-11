@@ -14,6 +14,8 @@ import {
   type ServerSummary,
   type TemplateConfigField,
   type TemplateSummary,
+  type GameVersion,
+  type VersionList,
 } from '@harrier-gg/contracts';
 import type { PanelMessage } from '@harrier-gg/protocol';
 import { firstValueFrom, timeout } from 'rxjs';
@@ -31,7 +33,7 @@ class LocalizedTextDto {
 class TemplateConfigFieldDto implements TemplateConfigField {
   @ApiProperty() key!: string;
   @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
-  @ApiProperty({ enum: ['string', 'integer'] }) type!: 'string' | 'integer';
+  @ApiProperty({ enum: ['string', 'integer', 'version'], description: 'version: pick from GET /templates/versions' }) type!: 'string' | 'integer' | 'version';
   @ApiProperty({ oneOf: [{ type: 'string' }, { type: 'number' }] }) default!: string | number;
   @ApiPropertyOptional() min?: number;
   @ApiPropertyOptional() max?: number;
@@ -53,6 +55,16 @@ class ConfigFileDto extends ConfigFileRefDto {
 
 class WriteConfigFileDto extends ConfigFileRefDto {
   @ApiProperty({ description: 'New content, at most 128 KiB' }) content!: string;
+}
+
+class GameVersionDto implements GameVersion {
+  @ApiProperty({ example: '26.3' }) id!: string;
+  @ApiProperty({ enum: ['release', 'snapshot'] }) type!: 'release' | 'snapshot';
+}
+
+class VersionListDto implements VersionList {
+  @ApiProperty({ example: '26.3', description: 'The newest release; what "latest" starts' }) latest!: string;
+  @ApiProperty({ type: [GameVersionDto], description: 'Newest first' }) versions!: GameVersionDto[];
 }
 
 class NamedDto {
@@ -144,6 +156,14 @@ export class TemplatesController {
   @ApiOkResponse({ type: [TemplateDto] })
   list(): Promise<TemplateDto[]> {
     return call(this.nats, Subjects.templatesList, {});
+  }
+
+  /** Versions for a template's version field, from its version provider (ADR 0012). */
+  @Get('versions')
+  @ApiQuery({ name: 'template', example: 'minecraft-java/paper' })
+  @ApiOkResponse({ type: VersionListDto })
+  versions(@Query('template') template: string): Promise<VersionListDto> {
+    return call(this.nats, Subjects.templatesVersions, { template });
   }
 }
 
