@@ -1,6 +1,6 @@
 {
   "name": "@harrier-gg/identity",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Users, sessions and the first-run setup (ADR 0006). Reachable via NATS only",
   "main": "dist/main.js",

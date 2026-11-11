@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/harrier-gg/backend/compare/v0.4.0...v0.5.0) (2026-11-11)
+
+
+### Features
+
+* Discord bot with /status, /start, /stop and online/crash messages ([#22](https://github.com/harrier-gg/backend/issues/22)) ([b540312](https://github.com/harrier-gg/backend/commit/b5403125320fc27d2dc3898ba7f6add781a18753))
+
 ## [0.4.0](https://github.com/harrier-gg/backend/compare/v0.3.0...v0.4.0) (2026-11-11)
 
 
