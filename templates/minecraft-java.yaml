@@ -46,3 +46,4 @@ lifecycle:
   stopTimeoutSecs: 60
 capabilities:
   console: { via: stdin }
+  players: { protocol: minecraft } # Server List Ping on the game port (ADR 0009)

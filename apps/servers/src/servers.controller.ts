@@ -6,6 +6,10 @@ import {
   NodeIdSchema,
   type NodeCreated,
   CreateServerRequestSchema,
+  MetricsRecordSchema,
+  MetricsRequestSchema,
+  type MetricPoint,
+  type MetricsRange,
   ServerCommandRequestSchema,
   ServerIdSchema,
   ServerStatusSchema,
@@ -29,6 +33,14 @@ export const TEMPLATES = Symbol('TEMPLATES');
 type ServerRow = Awaited<ReturnType<Db['server']['findFirstOrThrow']>>;
 
 const fail = (status: number, detail: string) => ({ error: { status, detail } });
+
+const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+/** Time span and bucket size per graph range (ADR 0009). */
+const RANGES: Record<MetricsRange, { spanMs: number; step: string }> = {
+  '1h': { spanMs: 60 * 60 * 1000, step: '1 minute' },
+  '24h': { spanMs: 24 * 60 * 60 * 1000, step: '10 minutes' },
+  '7d': { spanMs: RETENTION_MS, step: '1 hour' },
+};
 
 function toSummary(s: ServerRow): ServerSummary {
   return {
@@ -170,6 +182,50 @@ export class ServersController {
       data: { status: message.status, statusMessage: message.message ?? null },
     });
     if (updated.count === 0) this.logger.warn(`Ignoring status for unknown server ${message.serverId} from node ${nodeId}`);
+  }
+
+  /** Per-minute values from the gateway. Only servers on the reporting node are stored. */
+  @EventPattern(Subjects.metricsRecord)
+  async onMetrics(@Payload() payload: unknown) {
+    const record = MetricsRecordSchema.safeParse(payload);
+    if (!record.success) return;
+    const { nodeId, samples } = record.data;
+    const own = await this.db.server.findMany({
+      where: { nodeId, id: { in: samples.map((s) => s.serverId) } },
+      select: { id: true },
+    });
+    const ids = new Set(own.map((s) => s.id));
+    await this.db.serverMetric.createMany({
+      data: samples
+        .filter((s) => ids.has(s.serverId))
+        .map((s) => ({ serverId: s.serverId, at: new Date(s.at), cpuPercent: s.cpuPercent, memoryBytes: BigInt(s.memoryBytes), players: s.players })),
+      skipDuplicates: true,
+    });
+    await this.db.serverMetric.deleteMany({ where: { at: { lt: new Date(Date.now() - RETENTION_MS) } } });
+  }
+
+  /** Graph data: average CPU, peak memory and peak players per bucket. */
+  @MessagePattern(Subjects.serversMetrics)
+  async metrics(@Payload() payload: unknown): Promise<Reply<MetricPoint[]>> {
+    const request = MetricsRequestSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Range must be 1h, 24h or 7d');
+    const server = await this.find({ id: request.data.id });
+    if (!server) return fail(404, 'Server not found');
+    const { spanMs, step } = RANGES[request.data.range];
+    const rows = await this.db.$queryRaw<{ at: Date; cpu: number; memory: bigint; players: number | null }[]>`
+      SELECT date_bin(${step}::interval, at, TIMESTAMP '2000-01-01') AS at,
+             avg(cpu_percent)::float8 AS cpu, max(memory_bytes) AS memory, max(players) AS players
+      FROM servers.server_metrics
+      WHERE server_id = ${server.id}::uuid AND at >= ${new Date(Date.now() - spanMs)}
+      GROUP BY 1 ORDER BY 1`;
+    return {
+      data: rows.map((r) => ({
+        at: r.at.toISOString(),
+        cpuPercent: Math.round(r.cpu * 10) / 10,
+        memoryBytes: Number(r.memory),
+        players: r.players,
+      })),
+    };
   }
 
   private async find(payload: unknown) {

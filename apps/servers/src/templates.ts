@@ -53,7 +53,10 @@ const Template = z.object({
   ports: z.array(z.object({ name: z.string(), container: z.number(), protocol: z.enum(['tcp', 'udp']) })).min(1),
   config: z.array(ConfigField),
   lifecycle: z.object({ ready: z.string().optional(), stopTimeoutSecs: z.number().default(30) }),
-  capabilities: z.record(z.string(), z.unknown()),
+  capabilities: z.looseObject({
+    // Query protocol the agent uses for the player list (ADR 0009).
+    players: z.object({ protocol: z.enum(['minecraft']) }).optional(),
+  }),
 });
 export type Template = z.infer<typeof Template>;
 
@@ -157,5 +160,7 @@ export function buildSpec(template: Template, settings: Settings, hostPort: numb
     memoryMb,
     readyPattern: template.lifecycle.ready ?? null,
     stopTimeoutSecs: template.lifecycle.stopTimeoutSecs,
+    // ponytail: the query answers on the game port; templates with a separate query port name it later
+    query: template.capabilities.players ? { protocol: template.capabilities.players.protocol, port: hostPort } : null,
   };
 }
