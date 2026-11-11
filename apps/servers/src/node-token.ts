@@ -27,3 +27,10 @@ export function secretMatches(secret: string, storedHash: Uint8Array): boolean {
   const hash = hashSecret(secret);
   return storedHash.length === hash.length && timingSafeEqual(hash, storedHash);
 }
+
+/** Registers a node and returns its agent token (shown once; only the hash is stored). */
+export async function createNode(db: import('./db').Db, name: string) {
+  const { secret, hash } = newSecret();
+  const node = await db.node.create({ data: { name, tokenHash: hash } });
+  return { node, token: formatToken(node.id, secret) };
+}

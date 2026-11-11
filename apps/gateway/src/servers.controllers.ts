@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
 import { ApiBody, ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import {
   Subjects,
   type AgentsSendReply,
   type AgentsSendRequest,
+  type NodeCreated,
   type NodeSummary,
   type Reply,
   type ServerStatus,
@@ -56,6 +57,15 @@ class NodeDto implements NodeSummary {
   @ApiProperty() name!: string;
   @ApiProperty({ type: String, format: 'date-time', nullable: true }) lastSeenAt!: string | null;
   @ApiProperty({ description: 'Whether the agent is connected right now' }) online!: boolean;
+}
+
+class CreateNodeDto {
+  @ApiProperty({ example: 'gaming-pc', description: '1–64 characters: letters, digits, ".", "_", "-"' }) name!: string;
+}
+
+class NodeCreatedDto implements NodeCreated {
+  @ApiProperty({ type: NodeDto }) node!: NodeDto;
+  @ApiProperty({ description: 'Agent token (HARRIER_AGENT_TOKEN). Shown only once.' }) token!: string;
 }
 
 class ServerDto implements ServerSummary {
@@ -118,6 +128,22 @@ export class NodesController {
   async list(): Promise<NodeDto[]> {
     const nodes = await call<NodeSummary[]>(this.nats, Subjects.nodesList, {});
     return nodes.map((n) => ({ ...n, online: this.agents.isOnline(n.id) }));
+  }
+
+  @Post()
+  @HttpCode(200)
+  @ApiBody({ type: CreateNodeDto })
+  @ApiOkResponse({ type: NodeCreatedDto })
+  async create(@Body() body: CreateNodeDto): Promise<NodeCreatedDto> {
+    const created = await call<NodeCreated>(this.nats, Subjects.nodesCreate, { name: body?.name });
+    return { ...created, node: { ...created.node, online: false } };
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await call(this.nats, Subjects.nodesRemove, { id });
+    this.agents.disconnect(id);
   }
 }
 

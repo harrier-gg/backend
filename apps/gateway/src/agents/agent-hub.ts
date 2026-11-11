@@ -66,6 +66,11 @@ export class AgentHub implements OnApplicationShutdown {
     return this.agents.has(nodeId);
   }
 
+  /** Drops a node's connection, e.g. after the node was removed and its token revoked. */
+  disconnect(nodeId: string) {
+    this.agents.get(nodeId)?.socket.close(4001, 'Node removed');
+  }
+
   /** Delivers a panel message to a node's agent. Returns false if the node is offline. */
   send(nodeId: string, message: PanelMessage): boolean {
     const agent = this.agents.get(nodeId);
