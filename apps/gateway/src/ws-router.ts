@@ -3,6 +3,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { AGENT_WS_PATH, AgentHub } from './agents/agent-hub';
+import { Sessions } from './auth/session';
 import { CONSOLE_WS_PATH, ConsoleHub } from './console-hub';
 
 /**
@@ -15,6 +16,7 @@ export class WsRouter implements OnApplicationBootstrap {
     private readonly http: HttpAdapterHost,
     private readonly agents: AgentHub,
     private readonly consoles: ConsoleHub,
+    private readonly sessions: Sessions,
   ) {}
 
   onApplicationBootstrap() {
@@ -25,7 +27,11 @@ export class WsRouter implements OnApplicationBootstrap {
         this.agents.wss.handleUpgrade(req, socket, head, (ws) => this.agents.wss.emit('connection', ws, req));
       } else if (CONSOLE_WS_PATH.test(path)) {
         if (!ConsoleHub.allowed(req)) return void socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
-        this.consoles.wss.handleUpgrade(req, socket, head, (ws) => this.consoles.wss.emit('connection', ws, req));
+        // Consoles need a logged-in user (ADR 0006), checked before the WebSocket is accepted.
+        void this.sessions.fromRequest(req).then((session) => {
+          if (!session) return void socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          this.consoles.wss.handleUpgrade(req, socket, head, (ws) => this.consoles.wss.emit('connection', ws, req));
+        });
       } else {
         socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
       }

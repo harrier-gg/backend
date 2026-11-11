@@ -21,6 +21,12 @@
           "type": "json",
           "path": "openapi.json",
           "jsonpath": "$.info.version"
+        },
+        "apps/identity/src/version.ts",
+        {
+          "type": "json",
+          "path": "apps/identity/package.json",
+          "jsonpath": "$.version"
         }
       ],
       "include-component-in-tag": false

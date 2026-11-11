@@ -1,6 +1,10 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { AgentHub } from './agents/agent-hub';
+import { AuthController } from './auth/auth.controller';
+import { AuthGuard } from './auth/auth.guard';
+import { Sessions } from './auth/session';
 import { loadConfig } from './config';
 import { ConsoleHub } from './console-hub';
 import { AgentsController, SystemController } from './controllers';
@@ -13,10 +17,12 @@ import { ContractRef } from './openapi';
 const config = loadConfig();
 
 @Module({
-  controllers: [SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController],
+  controllers: [AuthController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController],
   providers: [
     AgentHub,
     ConsoleHub,
+    Sessions,
+    { provide: APP_GUARD, useClass: AuthGuard },
     WsRouter,
     ContractRef,
     {

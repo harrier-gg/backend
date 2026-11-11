@@ -20,13 +20,13 @@ down:
 dev: up migrate
     npm run dev
 
-# Apply database migrations
+# Apply database migrations (every service keeps its own history in its own schema)
 migrate:
-    npm run migrate --workspace @harrier-gg/servers
+    npm run migrate --workspace @harrier-gg/servers --workspace @harrier-gg/identity
 
-# Create a migration after changing a prisma/schema.prisma (the migration is committed)
-migration name:
-    npm run migrate:dev --workspace @harrier-gg/servers -- --name {{name}}
+# Create a migration after changing a service's prisma/schema.prisma (committed), e.g. `just migration servers add-backups`
+migration service name:
+    npm run migrate:dev --workspace @harrier-gg/{{service}} -- --name {{name}}
 
 # Register a node and print its agent token once (ADR 0004)
 node-create name:

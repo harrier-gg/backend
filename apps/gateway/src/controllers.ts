@@ -4,6 +4,7 @@ import { ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { firstValueFrom, timeout } from 'rxjs';
 import { AgentHub } from './agents/agent-hub';
+import { Public } from './auth/auth.guard';
 import { ContractRef } from './openapi';
 import { NATS } from './nats';
 import { VERSION } from './version';
@@ -40,18 +41,21 @@ export class SystemController {
     private readonly contract: ContractRef,
   ) {}
 
+  @Public()
   @Get('health')
   @ApiOkResponse({ type: HealthDto })
   async health(): Promise<HealthDto> {
-    const servers = await firstValueFrom(
-      this.nats.send<ServiceHealth>(Subjects.serversHealth, {}).pipe(timeout(1500)),
-    ).then(
-      () => 'up' as const,
-      () => 'down' as const,
-    );
-    return { status: servers === 'up' ? 'ok' : 'degraded', version: VERSION, services: { servers } };
+    const ping = (subject: string) =>
+      firstValueFrom(this.nats.send<ServiceHealth>(subject, {}).pipe(timeout(1500))).then(
+        () => 'up' as const,
+        () => 'down' as const,
+      );
+    const [servers, identity] = await Promise.all([ping(Subjects.serversHealth), ping(Subjects.identityHealth)]);
+    const services = { servers, identity };
+    return { status: Object.values(services).every((s) => s === 'up') ? 'ok' : 'degraded', version: VERSION, services };
   }
 
+  @Public()
   @Get('meta')
   @ApiOkResponse({ type: MetaDto })
   meta(): MetaDto {
