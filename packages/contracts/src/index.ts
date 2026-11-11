@@ -20,6 +20,11 @@ export const Subjects = {
   serversUpdateSettings: 'servers.settings',
   serversReadFile: 'servers.files.read',
   serversListDir: 'servers.files.list',
+  serversBackups: 'servers.backups',
+  serversBackupCreate: 'servers.backups.create',
+  serversBackupDelete: 'servers.backups.delete',
+  serversBackupRestore: 'servers.backups.restore',
+  serversBackupSchedule: 'servers.backups.schedule',
   serversDeletePath: 'servers.files.delete',
   serversMakeDir: 'servers.files.mkdir',
   serversMovePath: 'servers.files.move',
@@ -34,6 +39,8 @@ export const Subjects = {
   agentsRequest: 'agents.request',
   /** Gateway → servers (event): an agent reported something the servers service persists. */
   agentsEvent: 'agents.event',
+  /** Gateway → servers (event): an agent finished a backup or restore (ADR 0016). */
+  agentsBackup: 'agents.backup',
   /** Identity (ADR 0006). */
   identitySetupStatus: 'identity.setupStatus',
   identitySetup: 'identity.setup',
@@ -173,6 +180,39 @@ export const ReadFileRequestSchema = ServerIdSchema.extend({ path: FilePathSchem
 /** `path` "" is the data directory itself. */
 export const ListDirRequestSchema = ServerIdSchema.extend({ path: z.union([z.literal(''), FilePathSchema]) });
 export const MovePathRequestSchema = ServerIdSchema.extend({ from: FilePathSchema, to: FilePathSchema });
+
+// ---- Backups (ADR 0016) ----
+
+/** Names the agent gives backups: `<unix seconds>[-before-restore].tar.gz`. */
+export const BackupNameSchema = z.string().regex(/^[0-9]{1,20}(-before-restore)?\.tar\.gz$/);
+export const BackupRefSchema = ServerIdSchema.extend({ name: BackupNameSchema });
+export const BackupScheduleSchema = ServerIdSchema.extend({
+  /** 0 = only by hand; at most once a week. */
+  everyHours: z.number().int().min(0).max(168),
+  keep: z.number().int().min(1).max(100),
+});
+export const BackupResultEventSchema = z.object({
+  nodeId: z.string().uuid(),
+  message: z.object({
+    type: z.literal('backupResult'),
+    serverId: z.string().uuid(),
+    action: z.enum(['create', 'restore']),
+    name: z.string().max(100).nullable().optional(),
+    error: z.string().max(500).nullable().optional(),
+  }),
+});
+
+export interface BackupsSummary {
+  everyHours: number;
+  keep: number;
+  lastBackupAt: string | null;
+  /** A backup or restore the agent is working on right now. */
+  inProgress: 'create' | 'restore' | null;
+  /** How the last backup or restore since the panel started ended; null if none or fine. */
+  lastError: string | null;
+  /** Newest first; null while the node is offline. */
+  backups: FileEntry[] | null;
+}
 export const WriteFileRequestSchema = ReadFileRequestSchema.extend({
   content: z.string().refine((s) => Buffer.byteLength(s) <= FILE_MAX_BYTES, 'The file is larger than 128 KiB'),
 });

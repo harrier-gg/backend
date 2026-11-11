@@ -1119,6 +1119,191 @@
           "files"
         ]
       }
+    },
+    "/servers/{id}/backups": {
+      "get": {
+        "operationId": "backupsSummary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupsSummaryDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backups"
+        ]
+      },
+      "post": {
+        "operationId": "backupsCreate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "backups"
+        ]
+      },
+      "delete": {
+        "operationId": "backupsRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "backups"
+        ]
+      }
+    },
+    "/servers/{id}/backups/schedule": {
+      "put": {
+        "operationId": "backupsSchedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupScheduleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "backups"
+        ]
+      }
+    },
+    "/servers/{id}/backups/restore": {
+      "post": {
+        "operationId": "backupsRestore",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupNameDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "backups"
+        ]
+      }
+    },
+    "/servers/{id}/backups/download": {
+      "get": {
+        "operationId": "backupsDownload",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archive (tar.gz)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "backups"
+        ]
+      }
     }
   },
   "info": {
@@ -2028,6 +2213,81 @@
         "required": [
           "from",
           "to"
+        ]
+      },
+      "BackupsSummaryDto": {
+        "type": "object",
+        "properties": {
+          "everyHours": {
+            "type": "number"
+          },
+          "keep": {
+            "type": "number"
+          },
+          "lastBackupAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "inProgress": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "create",
+              "restore"
+            ]
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "backups": {
+            "nullable": true,
+            "description": "Newest first; null while the node is offline",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileEntryDto"
+            }
+          }
+        },
+        "required": [
+          "everyHours",
+          "keep",
+          "lastBackupAt",
+          "inProgress",
+          "lastError",
+          "backups"
+        ]
+      },
+      "BackupScheduleDto": {
+        "type": "object",
+        "properties": {
+          "everyHours": {
+            "type": "number",
+            "description": "Hours between scheduled backups; 0 = only by hand",
+            "example": 24
+          },
+          "keep": {
+            "type": "number",
+            "description": "Backups to keep",
+            "example": 7
+          }
+        },
+        "required": [
+          "everyHours",
+          "keep"
+        ]
+      },
+      "BackupNameDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "1794413078.tar.gz"
+          }
+        },
+        "required": [
+          "name"
         ]
       }
     }
