@@ -615,6 +615,46 @@
         ]
       }
     },
+    "/servers/{id}/settings": {
+      "put": {
+        "operationId": "serversUpdateSettings",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/servers/{id}/command": {
       "post": {
         "operationId": "serversCommand",
@@ -1193,6 +1233,9 @@
                 },
                 {
                   "type": "number"
+                },
+                {
+                  "type": "boolean"
                 }
               ]
             }
@@ -1256,6 +1299,9 @@
                 },
                 {
                   "type": "number"
+                },
+                {
+                  "type": "boolean"
                 }
               ]
             }
@@ -1294,6 +1340,31 @@
           "cpuPercent",
           "memoryBytes",
           "players"
+        ]
+      },
+      "SettingsDto": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "description": "Changed settings; keys left out keep their value"
+          }
+        },
+        "required": [
+          "settings"
         ]
       },
       "CommandDto": {
@@ -1355,6 +1426,21 @@
           "name"
         ]
       },
+      "SelectOptionDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/LocalizedTextDto"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ]
+      },
       "TemplateConfigFieldDto": {
         "type": "object",
         "properties": {
@@ -1368,7 +1454,9 @@
             "type": "string",
             "enum": [
               "string",
-              "integer"
+              "integer",
+              "boolean",
+              "select"
             ]
           },
           "default": {
@@ -1378,6 +1466,9 @@
               },
               {
                 "type": "number"
+              },
+              {
+                "type": "boolean"
               }
             ]
           },
@@ -1389,6 +1480,13 @@
           },
           "pattern": {
             "type": "string"
+          },
+          "options": {
+            "description": "Choices of a select field",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelectOptionDto"
+            }
           }
         },
         "required": [

@@ -16,6 +16,7 @@ export const Subjects = {
   serversStart: 'servers.start',
   serversStop: 'servers.stop',
   serversCommand: 'servers.command',
+  serversUpdateSettings: 'servers.settings',
   /** Graph data of one server (ADR 0009). */
   serversMetrics: 'servers.metrics',
   /** Gateway → servers (event): per-minute values of a node's servers. */
@@ -90,11 +91,13 @@ export interface LocalizedText {
 export interface TemplateConfigField {
   key: string;
   label: LocalizedText;
-  type: 'string' | 'integer';
-  default: string | number;
+  type: 'string' | 'integer' | 'boolean' | 'select';
+  default: string | number | boolean;
   min?: number;
   max?: number;
   pattern?: string;
+  /** Choices of a `select` field. */
+  options?: { value: string; label: LocalizedText }[];
 }
 
 export interface TemplateSummary {
@@ -112,7 +115,7 @@ export interface ServerSummary {
   name: string;
   nodeId: string;
   templateId: string;
-  settings: Record<string, string | number>;
+  settings: Record<string, string | number | boolean>;
   /** Address players connect to: the node's host plus this port. */
   hostPort: number;
   status: ServerStatus;
@@ -120,15 +123,21 @@ export interface ServerSummary {
   createdAt: string;
 }
 
+/** Values for a template's config fields; the servers service checks them against the template. */
+const SettingsSchema = z.record(z.string(), z.union([z.string().max(1000), z.number(), z.boolean()]));
+
 export const CreateServerRequestSchema = z.object({
   nodeId: z.string().uuid(),
   name: z.string().regex(/^[A-Za-z0-9 ._-]{1,64}$/),
   templateId: z.string().max(100),
-  settings: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
+  settings: SettingsSchema.default({}),
 });
 export type CreateServerRequest = z.infer<typeof CreateServerRequestSchema>;
 
 export const ServerIdSchema = z.object({ id: z.string().uuid() });
+
+/** Changed settings; keys left out keep their value. They apply on the next start. */
+export const UpdateSettingsRequestSchema = ServerIdSchema.extend({ settings: SettingsSchema });
 
 export const ServerCommandRequestSchema = z.object({
   id: z.string().uuid(),

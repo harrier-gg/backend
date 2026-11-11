@@ -11,6 +11,7 @@ import {
   type MetricPoint,
   type MetricsRange,
   ServerCommandRequestSchema,
+  UpdateSettingsRequestSchema,
   ServerIdSchema,
   ServerStatusSchema,
   Subjects,
@@ -153,6 +154,22 @@ export class ServersController {
 
     const spec = buildSpec(template, validated.settings, server.hostPort);
     return this.send(server, { type: 'startServer', serverId: server.id, spec });
+  }
+
+  @MessagePattern(Subjects.serversUpdateSettings)
+  async updateSettings(@Payload() payload: unknown): Promise<Reply<ServerSummary>> {
+    const request = UpdateSettingsRequestSchema.safeParse(payload);
+    if (!request.success) return fail(400, 'Invalid request: settings are required');
+    const server = await this.find({ id: request.data.id });
+    if (!server) return fail(404, 'Server not found');
+    const template = this.templates.get(server.templateId);
+    if (!template) return fail(409, `The template "${server.templateId}" no longer exists`);
+    // Stored values first, so keys the template dropped since do not block saving.
+    const stored = Object.fromEntries(Object.entries(server.settings as Settings).filter(([k]) => template.config.some((f) => f.key === k)));
+    const validated = validateSettings(template, { ...stored, ...request.data.settings });
+    if ('error' in validated) return fail(400, validated.error);
+    const updated = await this.db.server.update({ where: { id: server.id }, data: { settings: validated.settings } });
+    return { data: toSummary(updated) };
   }
 
   @MessagePattern(Subjects.serversStop)

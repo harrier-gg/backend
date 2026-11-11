@@ -9,18 +9,23 @@ import { z } from 'zod';
 
 const Localized = z.object({ en: z.string(), de: z.string().optional() });
 
-const ConfigField = z.object({
-  key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/),
-  label: Localized,
-  type: z.enum(['string', 'integer']),
-  default: z.union([z.string(), z.number()]),
-  min: z.number().optional(),
-  max: z.number().optional(),
-  pattern: z.string().optional(),
-  // Where the value goes: an environment variable or a resource limit.
-  env: z.string().regex(/^[A-Z][A-Z0-9_]*$/).optional(),
-  limit: z.enum(['memory']).optional(),
-});
+const ConfigField = z
+  .object({
+    key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/),
+    label: Localized,
+    type: z.enum(['string', 'integer', 'boolean', 'select']),
+    default: z.union([z.string(), z.number(), z.boolean()]),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    pattern: z.string().optional(),
+    /** Choices of a `select` field. */
+    options: z.array(z.object({ value: z.string(), label: Localized })).min(1).optional(),
+    // Where the value goes: an environment variable or a resource limit.
+    env: z.string().regex(/^[A-Z][A-Z0-9_]*$/).optional(),
+    limit: z.enum(['memory']).optional(),
+  })
+  .refine((f) => (f.type === 'select') === (f.options !== undefined), 'A select field needs options, other fields none')
+  .refine((f) => checkValue(f, f.default) === null, 'The default does not fit the field');
 
 /** A template file as written; variants only contain what differs from their base. */
 const TemplateFile = z.object({
@@ -60,7 +65,26 @@ const Template = z.object({
 });
 export type Template = z.infer<typeof Template>;
 
-export type Settings = Record<string, string | number>;
+export type Settings = Record<string, string | number | boolean>;
+type Field = Pick<TemplateConfigField, 'type' | 'min' | 'max' | 'pattern' | 'options'>;
+
+/** Returns why a value does not fit a field, or null if it does. Values are never converted. */
+function checkValue(field: Field, value: unknown): string | null {
+  switch (field.type) {
+    case 'integer':
+      if (typeof value !== 'number' || !Number.isInteger(value)) return 'must be a whole number';
+      if (field.min !== undefined && value < field.min) return `must be at least ${field.min}`;
+      if (field.max !== undefined && value > field.max) return `must be at most ${field.max}`;
+      return null;
+    case 'boolean':
+      return typeof value === 'boolean' ? null : 'must be true or false';
+    case 'select':
+      return field.options?.some((o) => o.value === value) ? null : 'is not one of the options';
+    case 'string':
+      if (typeof value !== 'string') return 'must be text';
+      return field.pattern && !new RegExp(field.pattern).test(value) ? 'has an invalid value' : null;
+  }
+}
 
 /** Merges a variant over its base: objects merge (runtime.env too), arrays and values replace. */
 function merge(base: TemplateFile, variant: TemplateFile): TemplateFile {
@@ -128,17 +152,9 @@ export function validateSettings(template: Template, input: Settings): { setting
   const settings: Settings = {};
   for (const field of template.config) {
     const value = input[field.key] ?? field.default;
-    if (field.type === 'integer') {
-      const n = typeof value === 'number' ? value : Number(value);
-      if (!Number.isInteger(n)) return { error: `${field.key} must be a whole number` };
-      if (field.min !== undefined && n < field.min) return { error: `${field.key} must be at least ${field.min}` };
-      if (field.max !== undefined && n > field.max) return { error: `${field.key} must be at most ${field.max}` };
-      settings[field.key] = n;
-    } else {
-      const s = String(value);
-      if (field.pattern && !new RegExp(field.pattern).test(s)) return { error: `${field.key} has an invalid value` };
-      settings[field.key] = s;
-    }
+    const problem = checkValue(field, value);
+    if (problem) return { error: `${field.key} ${problem}` };
+    settings[field.key] = value;
   }
   return { settings };
 }

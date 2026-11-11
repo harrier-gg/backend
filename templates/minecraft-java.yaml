@@ -41,6 +41,38 @@ config:
     default: A Harrier server
     pattern: '^[^\r\n]{0,120}$'
     env: MOTD
+  - key: gamemode
+    label: { en: Game mode, de: Spielmodus }
+    type: select
+    default: survival
+    options:
+      - { value: survival, label: { en: Survival, de: Überleben } }
+      - { value: creative, label: { en: Creative, de: Kreativ } }
+      - { value: adventure, label: { en: Adventure, de: Abenteuer } }
+      - { value: spectator, label: { en: Spectator, de: Zuschauer } }
+    env: MODE
+  - key: difficulty
+    label: { en: Difficulty, de: Schwierigkeit }
+    type: select
+    default: easy
+    options:
+      - { value: peaceful, label: { en: Peaceful, de: Friedlich } }
+      - { value: easy, label: { en: Easy, de: Einfach } }
+      - { value: normal, label: { en: Normal, de: Normal } }
+      - { value: hard, label: { en: Hard, de: Schwer } }
+    env: DIFFICULTY
+  - key: maxPlayers
+    label: { en: Max. players, de: Max. Spieler }
+    type: integer
+    default: 20
+    min: 1
+    max: 200
+    env: MAX_PLAYERS
+  - key: pvp
+    label: { en: PvP (players can hurt each other), de: PvP (Spieler können sich verletzen) }
+    type: boolean
+    default: true
+    env: PVP
 lifecycle:
   ready: 'Done \([0-9.]+s\)!'
   stopTimeoutSecs: 60
