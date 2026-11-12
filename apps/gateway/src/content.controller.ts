@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiBody, ApiOkResponse, ApiProperty, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Subjects, type ContentProject, type ContentSide, type InstalledContent } from '@harrier-gg/contracts';
+import { Subjects, type ContentProject, type ContentSide, type ContentUpdate, type InstalledContent } from '@harrier-gg/contracts';
 import { Allow } from './auth/auth.guard';
 import { NATS } from './nats';
 import { call } from './servers.controllers';
@@ -30,6 +30,12 @@ class InstalledContentDto implements InstalledContent {
   @ApiProperty({ type: String, nullable: true, enum: SIDES }) side!: ContentSide | null;
   @ApiProperty({ description: 'Installed because another project needs it' }) dependency!: boolean;
   @ApiProperty({ format: 'date-time' }) installedAt!: string;
+}
+
+class ContentUpdateDto implements ContentUpdate {
+  @ApiProperty() contentId!: string;
+  @ApiProperty({ type: String, nullable: true, description: 'The newer version; null if nothing fits the server any more' }) version!: string | null;
+  @ApiProperty({ description: 'No version fits the server\'s game version' }) incompatible!: boolean;
 }
 
 class InstallDto {
@@ -73,10 +79,28 @@ export class ContentController {
     return call(this.nats, Subjects.serversContentInstall, { id, kind: body?.kind, source: body?.source, projectId: body?.projectId }, 600_000);
   }
 
+  /** Content with a newer fitting version, or none that fits the server's game version any more. */
+  @Get('updates')
+  @Allow('manageServers')
+  @ApiOkResponse({ type: [ContentUpdateDto] })
+  updates(@Param('id', ParseUUIDPipe) id: string): Promise<ContentUpdateDto[]> {
+    return call(this.nats, Subjects.serversContentUpdates, { id }, 60_000);
+  }
+
+  /** Updates to the newest fitting version and installs dependencies it needs; returns what changed. */
+  @Post(':contentId/update')
+  @Allow('manageServers')
+  @ApiOkResponse({ type: [InstalledContentDto] })
+  @HttpCode(200)
+  update(@Param('id', ParseUUIDPipe) id: string, @Param('contentId', ParseUUIDPipe) contentId: string): Promise<InstalledContentDto[]> {
+    return call(this.nats, Subjects.serversContentUpdate, { id, contentId }, 600_000);
+  }
+
+  /** Removes content and the dependencies nobody needs any more; returns everything removed. */
   @Delete(':contentId')
   @Allow('manageServers')
-  @HttpCode(204)
-  async remove(@Param('id', ParseUUIDPipe) id: string, @Param('contentId', ParseUUIDPipe) contentId: string): Promise<void> {
-    await call(this.nats, Subjects.serversContentRemove, { id, contentId }, 20_000);
+  @ApiOkResponse({ type: [InstalledContentDto] })
+  remove(@Param('id', ParseUUIDPipe) id: string, @Param('contentId', ParseUUIDPipe) contentId: string): Promise<InstalledContentDto[]> {
+    return call(this.nats, Subjects.serversContentRemove, { id, contentId }, 60_000);
   }
 }
