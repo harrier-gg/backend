@@ -115,6 +115,14 @@ export function imageForJava(images: Record<string, string>, need: number): stri
 
 const isLatest = (version: string) => version.toLowerCase() === 'latest';
 
+/** The concrete game version a server runs ("latest" resolved), or "" for games without one. */
+export async function gameVersionOf(providers: VersionProviders, template: Template, settings: Settings): Promise<string> {
+  const field = template.config.find((f) => f.type === 'version');
+  if (!field) return '';
+  const resolved = await resolveVersion(providers, template, settings);
+  return String(resolved.settings[field.key] ?? '');
+}
+
 /** Rejects versions the provider does not know. Without a list (offline) the name check is all. */
 export async function checkVersion(providers: VersionProviders, template: Template, settings: Settings): Promise<string | null> {
   const field = template.config.find((f) => f.type === 'version');

@@ -26,6 +26,8 @@ export const Subjects = {
   serversContentRemove: 'servers.content.remove',
   serversContentUpdates: 'servers.content.updates',
   serversContentUpdate: 'servers.content.update',
+  serversShare: 'servers.share',
+  serversSharePack: 'servers.share.pack',
   serversBackups: 'servers.backups',
   serversBackupCreate: 'servers.backups.create',
   serversBackupDelete: 'servers.backups.delete',
@@ -144,6 +146,8 @@ export interface TemplateSummary {
   files: { path: string; description?: LocalizedText }[];
   /** Kinds of content that can be installed, with the providers to search (ADR 0017). */
   content: { kind: string; label: LocalizedText; path: string; sources: string[] }[];
+  /** Pack format for sharing player content (ADR 0018); null if the game shares nothing. */
+  share: 'mrpack' | null;
 }
 
 /** `sleeping`: stopped because nobody was online; joining or starting wakes it (ADR 0013). */
@@ -231,6 +235,24 @@ export interface ContentUpdate {
   /** The newer version; null if nothing fits the server's game version (`incompatible`). */
   version: string | null;
   incompatible: boolean;
+}
+
+// ---- Sharing player content (ADR 0018) ----
+
+export interface ShareSummary {
+  format: 'mrpack';
+  /** What the download is called, e.g. `Survival.mrpack`. */
+  fileName: string;
+  /** Content players get. */
+  mods: { name: string; version: string }[];
+  /** Content that cannot be in the pack (no download link or hashes). */
+  missing: string[];
+}
+
+export interface SharePack {
+  fileName: string;
+  /** The pack file, base64-encoded. */
+  data: string;
 }
 
 // ---- Backups (ADR 0016) ----

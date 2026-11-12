@@ -38,6 +38,9 @@ const ContentKind = z.object({
   sources: z.array(z.looseObject({ provider: z.string().regex(/^[a-z][a-z-]{0,39}$/) })).min(1),
 });
 
+/** How players get the content they need (ADR 0018): a pack format and the loader it names. */
+const Share = z.object({ format: z.enum(['mrpack']), loader: z.enum(['fabric-loader']) });
+
 /** Image per Java major version, so a game version gets the Java it needs (ADR 0012). */
 const JavaImages = z.record(z.string().regex(/^[0-9]+$/), z.string());
 
@@ -55,6 +58,7 @@ const TemplateFile = z.object({
     .optional(),
   versions: z.object({ provider: z.enum(PROVIDERS) }).optional(),
   content: z.array(ContentKind).optional(),
+  share: Share.optional(),
   ports: z
     .array(z.object({ name: z.string(), container: z.number().int().min(1).max(65535), protocol: z.enum(['tcp', 'udp']) }))
     .optional(),
@@ -74,6 +78,7 @@ const Template = z.object({
   runtime: z.object({ image: z.string(), env: z.record(z.string(), z.string()), java: JavaImages.optional() }),
   versions: z.object({ provider: z.enum(PROVIDERS) }).optional(),
   content: z.array(ContentKind).default([]),
+  share: Share.optional(),
   ports: z.array(z.object({ name: z.string(), container: z.number(), protocol: z.enum(['tcp', 'udp']) })).min(1),
   config: z.array(ConfigField),
   lifecycle: z.object({ ready: z.string().optional(), stopTimeoutSecs: z.number().default(30) }),
@@ -175,6 +180,7 @@ export class TemplateCatalog {
       config: t.config.map(({ env: _env, limit: _limit, ...field }): TemplateConfigField => field),
       files: t.files,
       content: t.content.map((c) => ({ kind: c.kind, label: c.label, path: c.path, sources: c.sources.map((s) => s.provider) })),
+      share: t.share?.format ?? null,
     }));
   }
 }

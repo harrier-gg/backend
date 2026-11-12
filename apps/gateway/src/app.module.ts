@@ -17,12 +17,13 @@ import { WsRouter } from './ws-router';
 import { TransferHub } from './agents/transfer-hub';
 import { BackupsController, FilesController } from './files.controller';
 import { ContentController } from './content.controller';
+import { ShareController } from './share.controller';
 import { ContractRef } from './openapi';
 
 const config = loadConfig();
 
 @Module({
-  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController, BackupsController, ContentController],
+  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController, BackupsController, ContentController, ShareController],
   providers: [
     AgentHub,
     TransferHub,

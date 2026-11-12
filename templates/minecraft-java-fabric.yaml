@@ -17,3 +17,5 @@ content:
     path: mods
     sources:
       - { provider: modrinth, type: mod, loader: fabric }
+# Friends download the client mods as one pack their launcher imports (ADR 0018).
+share: { format: mrpack, loader: fabric-loader }

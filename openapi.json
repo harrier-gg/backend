@@ -1550,6 +1550,67 @@
           "content"
         ]
       }
+    },
+    "/servers/{id}/share": {
+      "get": {
+        "operationId": "shareSummary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareSummaryDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "share"
+        ]
+      }
+    },
+    "/servers/{id}/share/download": {
+      "get": {
+        "operationId": "shareDownload",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pack",
+            "content": {
+              "application/x-modrinth-modpack+zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "share"
+        ]
+      }
     }
   },
   "info": {
@@ -2328,6 +2389,14 @@
               "$ref": "#/components/schemas/ContentKindDto"
             }
           },
+          "share": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "mrpack"
+            ],
+            "description": "Pack format for sharing player content (ADR 0018)"
+          },
           "config": {
             "type": "array",
             "items": {
@@ -2341,6 +2410,7 @@
           "variant",
           "files",
           "content",
+          "share",
           "config"
         ]
       },
@@ -2723,6 +2793,56 @@
           "contentId",
           "version",
           "incompatible"
+        ]
+      },
+      "ShareModDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version"
+        ]
+      },
+      "ShareSummaryDto": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "mrpack"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "example": "Survival.mrpack"
+          },
+          "mods": {
+            "description": "Content players get",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareModDto"
+            }
+          },
+          "missing": {
+            "description": "Content that cannot be in the pack",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "format",
+          "fileName",
+          "mods",
+          "missing"
         ]
       }
     }
