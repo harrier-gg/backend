@@ -941,6 +941,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "force",
+            "required": false,
+            "in": "query",
+            "description": "Also remove the servers of an offline node from the panel. Their files stay on the machine.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

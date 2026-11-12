@@ -206,8 +206,11 @@ export class NodesController {
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await call(this.nats, Subjects.nodesRemove, { id });
+  @ApiQuery({ name: 'force', required: false, type: Boolean, description: 'Also remove the servers of an offline node from the panel. Their files stay on the machine.' })
+  async remove(@Param('id', ParseUUIDPipe) id: string, @Query('force') force?: string): Promise<void> {
+    const forced = force === 'true';
+    if (forced && this.agents.isOnline(id)) throw new HttpException('The node is online. Delete its servers instead.', 409);
+    await call(this.nats, Subjects.nodesRemove, { id, force: forced });
     this.agents.disconnect(id);
   }
 }
