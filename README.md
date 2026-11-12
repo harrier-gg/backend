@@ -45,9 +45,7 @@ Templates for games live in `templates/` (one YAML file per variant, shared part
 
 Configuration via `HARRIER_*` environment variables only: `HARRIER_PORT`, `HARRIER_HOST` (default `127.0.0.1` until user login exists), `HARRIER_NATS_URL`, `HARRIER_DATABASE_URL` (servers, identity; the dev database listens on port 5433), `HARRIER_PUBLIC_URL` (address users open; HTTPS makes cookies `Secure`).
 
-Discord login (ADR 0008) is enabled when `HARRIER_DISCORD_CLIENT_ID` and `HARRIER_DISCORD_CLIENT_SECRET` are set (identity service). Create an application in the [Discord developer portal](https://discord.com/developers/applications) and add the redirect `<HARRIER_PUBLIC_URL>/api/v1/auth/discord/callback`.
-
-The Discord bot (ADR 0014) runs when `HARRIER_DISCORD_BOT_TOKEN` is set (discord service): in the same application, open **Bot**, reset the token and copy it. On start the service logs an invite link; open it to add the bot to your Discord server. Commands work for members whose Discord account is linked in the panel. For "online" and "crashed" messages, set `HARRIER_DISCORD_CHANNEL_ID` (in Discord: *Settings → Advanced → Developer Mode*, then right-click the channel → *Copy Channel ID*).
+**Integrations (ADR 0019):** the owner enters Discord login, Discord bot and CurseForge credentials on the panel's *Integrations* page; it also shows the redirect URL to add and the bot's invite link. Secrets are stored encrypted with `HARRIER_APP_KEY` (identity service; 32 random bytes, base64: `openssl rand -base64 32`); without it, secrets can only come from the environment. Environment variables win over the page: `HARRIER_DISCORD_CLIENT_ID` and `HARRIER_DISCORD_CLIENT_SECRET` (Discord login, ADR 0008), `HARRIER_DISCORD_BOT_TOKEN` and `HARRIER_DISCORD_CHANNEL_ID` (bot, ADR 0014; set them for the identity and the discord service), `HARRIER_CURSEFORGE_API_KEY`.
 
 The API speaks English only; errors use [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details, and the web panel translates them (see ADR 0003).
 

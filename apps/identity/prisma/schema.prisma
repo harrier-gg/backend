@@ -68,3 +68,15 @@ model Invite {
   @@map("invites")
   @@schema("identity")
 }
+
+/// Instance-wide settings such as integration credentials (ADR 0019). Secrets are encrypted
+/// with HARRIER_APP_KEY (AES-256-GCM).
+model Setting {
+  key       String   @id
+  value     String
+  secret    Boolean
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+  @@schema("identity")
+}

@@ -1,11 +1,13 @@
 import 'reflect-metadata';
 import { Controller, Logger, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { MessagePattern, Transport, type MicroserviceOptions } from '@nestjs/microservices';
+import { ClientProxyFactory, MessagePattern, Transport, type MicroserviceOptions } from '@nestjs/microservices';
 import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { config } from './config';
-import { createDb } from './db';
+import { createDb, type Db } from './db';
 import { DB, IdentityController, SetupToken } from './identity.controller';
+import { NATS, SETTINGS, Settings } from './settings';
+import { SettingsController } from './settings.controller';
 import { InvitesController } from './invites.controller';
 import { DiscordController } from './discord.controller';
 import { VERSION } from './version';
@@ -19,8 +21,13 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, IdentityController, InvitesController, DiscordController],
-  providers: [{ provide: DB, useFactory: createDb }, SetupToken],
+  controllers: [HealthController, IdentityController, InvitesController, DiscordController, SettingsController],
+  providers: [
+    { provide: DB, useFactory: createDb },
+    SetupToken,
+    { provide: SETTINGS, useFactory: (db: Db) => new Settings(db, config.HARRIER_APP_KEY), inject: [DB] },
+    { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } }) },
+  ],
 })
 class AppModule {}
 
