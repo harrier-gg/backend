@@ -86,6 +86,9 @@ model InstalledContent {
   path        String
   sha512      String?
   sha1        String?
+  /// Where the file came from, for sharing it with players (ADR 0018).
+  url         String?
+  size        Int?
   side        String?
   /// Installed because another project needs it, not picked by a user.
   dependency  Boolean  @default(false)

@@ -89,6 +89,7 @@ class TemplateDto implements TemplateSummary {
   @ApiProperty({ type: VariantDto }) variant!: VariantDto;
   @ApiProperty({ type: [TemplateFileDto], description: 'Files owners and admins can edit' }) files!: TemplateFileDto[];
   @ApiProperty({ type: [ContentKindDto], description: 'Content that can be installed (ADR 0017)' }) content!: ContentKindDto[];
+  @ApiProperty({ type: String, nullable: true, enum: ['mrpack'], description: 'Pack format for sharing player content (ADR 0018)' }) share!: 'mrpack' | null;
   @ApiProperty({ type: [TemplateConfigFieldDto] }) config!: TemplateConfigFieldDto[];
 }
 

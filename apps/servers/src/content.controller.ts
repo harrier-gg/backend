@@ -21,7 +21,7 @@ import type { Db } from './db';
 import { DB } from './nodes.controller';
 import { NATS, TEMPLATES, VERSIONS } from './servers.controller';
 import { knownSettings, type Settings, type Template, type TemplateCatalog } from './templates';
-import { resolveVersion, type VersionProviders } from './versions';
+import { gameVersionOf, type VersionProviders } from './versions';
 
 export const CONTENT = Symbol('CONTENT');
 const fail = (status: number, detail: string) => ({ error: { status, detail } });
@@ -245,6 +245,8 @@ export class ContentController {
       path,
       sha512: artifact.sha512 ?? null,
       sha1: artifact.sha1 ?? null,
+      url: artifact.url,
+      size: artifact.size,
       side: item.version.side,
       requires: item.version.requires,
     };
@@ -298,11 +300,8 @@ export class ContentController {
     return { server, template, kind, provider, options: provider.parse(options), gameVersion: await this.gameVersion(template, server.settings as Settings) };
   }
 
-  private async gameVersion(template: Template, settings: Settings): Promise<string> {
-    const field = template.config.find((f) => f.type === 'version');
-    if (!field) return '';
-    const resolved = await resolveVersion(this.versions, template, knownSettings(template, settings));
-    return String(resolved.settings[field.key] ?? '');
+  private gameVersion(template: Template, settings: Settings): Promise<string> {
+    return gameVersionOf(this.versions, template, knownSettings(template, settings));
   }
 
   private request(nodeId: string, message: PanelMessage): Promise<AgentsRequestReply> {

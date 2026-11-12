@@ -10,6 +10,7 @@ import { DB, NodesController } from './nodes.controller';
 import { NATS, ServersController, TEMPLATES, VERSIONS } from './servers.controller';
 import { BackupsController } from './backups.controller';
 import { CONTENT, ContentController } from './content.controller';
+import { ShareController } from './share.controller';
 import { providers } from './content';
 import { VersionProviders } from './versions';
 import { TemplateCatalog } from './templates';
@@ -24,7 +25,7 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, NodesController, ServersController, BackupsController, ContentController],
+  controllers: [HealthController, NodesController, ServersController, BackupsController, ContentController, ShareController],
   providers: [
     { provide: DB, useFactory: createDb },
     { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } }) },
