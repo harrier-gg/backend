@@ -47,6 +47,7 @@ model Server {
   /// Ran since its last backup; only such servers are due, so a stopped server does not
   /// replace older backups with copies of the same state.
   activeSinceBackup Boolean   @default(false) @map("active_since_backup")
+  content           InstalledContent[]
   metrics       ServerMetric[]
 
   @@unique([nodeId, hostPort])
@@ -67,5 +68,30 @@ model ServerMetric {
   @@id([serverId, at])
   @@index([at])
   @@map("server_metrics")
+  @@schema("servers")
+}
+
+/// A mod, plugin or other content installed from a provider (ADR 0017).
+model InstalledContent {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  serverId    String   @map("server_id") @db.Uuid
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  kind        String
+  provider    String
+  projectId   String   @map("project_id")
+  versionId   String   @map("version_id")
+  name        String
+  version     String
+  /// Relative to the server's data directory.
+  path        String
+  sha512      String?
+  sha1        String?
+  side        String?
+  /// Installed because another project needs it, not picked by a user.
+  dependency  Boolean  @default(false)
+  installedAt DateTime @default(now()) @map("installed_at")
+
+  @@unique([serverId, provider, projectId])
+  @@map("installed_content")
   @@schema("servers")
 }
