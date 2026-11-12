@@ -10,7 +10,7 @@ runtime:
     TYPE: PAPER
 versions:
   provider: papermc
-# Plugins and where to find them (ADR 0017); more sources (Hangar, CurseForge) are more entries.
+# Plugins and where to find them (ADR 0017); more sources (Hangar) are more entries.
 content:
   - kind: plugin
     label: { en: Plugins, de: Plugins }

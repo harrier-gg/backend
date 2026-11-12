@@ -23,7 +23,6 @@ export const DEFINITIONS: Record<SettingKey, Definition> = {
   'discord.clientSecret': { env: 'HARRIER_DISCORD_CLIENT_SECRET', secret: true, pattern: TOKEN },
   'discord.botToken': { env: 'HARRIER_DISCORD_BOT_TOKEN', secret: true, pattern: TOKEN },
   'discord.channelId': { env: 'HARRIER_DISCORD_CHANNEL_ID', secret: false, pattern: SNOWFLAKE },
-  'curseforge.apiKey': { env: 'HARRIER_CURSEFORGE_API_KEY', secret: true, pattern: TOKEN },
 };
 
 /** `v1:` + base64(IV ‖ tag ‖ ciphertext). The key name is authenticated too, so a ciphertext cannot be moved to another key. */
