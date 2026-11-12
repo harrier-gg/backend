@@ -474,7 +474,7 @@ export function can(role: Role, permission: Permission): boolean {
 
 // ---- Integration settings (ADR 0019) ----
 
-export const SETTING_KEYS = ['discord.clientId', 'discord.clientSecret', 'discord.botToken', 'discord.channelId', 'curseforge.apiKey'] as const;
+export const SETTING_KEYS = ['discord.clientId', 'discord.clientSecret', 'discord.botToken', 'discord.channelId'] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
 export interface SettingEntry {

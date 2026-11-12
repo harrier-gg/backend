@@ -10,7 +10,7 @@ runtime:
     TYPE: FABRIC
 versions:
   provider: fabric
-# Mods and where to find them (ADR 0017); more sources (CurseForge) are more list entries.
+# Mods and where to find them (ADR 0017); more sources are more list entries.
 content:
   - kind: mod
     label: { en: Mods, de: Mods }

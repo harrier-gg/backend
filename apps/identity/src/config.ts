@@ -17,7 +17,6 @@ const ConfigSchema = z.object({
   /** Integrations set in the environment win over the panel (ADR 0019). */
   HARRIER_DISCORD_BOT_TOKEN: z.string().optional(),
   HARRIER_DISCORD_CHANNEL_ID: z.string().optional(),
-  HARRIER_CURSEFORGE_API_KEY: z.string().optional(),
   /** Only changed for tests against a local mock. */
   HARRIER_DISCORD_API_URL: z.string().url().default('https://discord.com/api'),
   HARRIER_DISCORD_AUTHORIZE_URL: z.string().url().default('https://discord.com/oauth2/authorize'),

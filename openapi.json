@@ -2905,8 +2905,7 @@
               "discord.clientId",
               "discord.clientSecret",
               "discord.botToken",
-              "discord.channelId",
-              "curseforge.apiKey"
+              "discord.channelId"
             ]
           },
           "secret": {

@@ -28,7 +28,7 @@ test('secrets are encrypted, bound to their key, and never listed', async () => 
   assert.match(stored, /^v1:/);
   assert.ok(!stored.includes('bot.token-value_123'));
   assert.equal(rows.get('discord.channelId')!.value, '1234567890', 'not secret: stored as it is');
-  assert.throws(() => decrypt(Buffer.from(appKey, 'base64'), 'curseforge.apiKey', stored), 'moved to another key: refused');
+  assert.throws(() => decrypt(Buffer.from(appKey, 'base64'), 'discord.clientSecret', stored), 'moved to another key: refused');
 
   assert.equal(await settings.getOne('discord.botToken'), 'bot.token-value_123');
   const listed = await settings.list();
@@ -57,7 +57,7 @@ test('the environment wins and cannot be changed from the panel', async () => {
 test('without HARRIER_APP_KEY no secret is stored; invalid values are refused', async () => {
   const { db, rows } = fakeDb();
   const settings = new Settings(db, undefined, {});
-  assert.match((await settings.set({ 'curseforge.apiKey': 'abcdefghijklmnop' })) ?? '', /HARRIER_APP_KEY/);
+  assert.match((await settings.set({ 'discord.botToken': 'abcdefghijklmnop' })) ?? '', /HARRIER_APP_KEY/);
   assert.equal(rows.size, 0);
   assert.match((await settings.set({ 'discord.channelId': 'not a snowflake' })) ?? '', /does not look right/);
 

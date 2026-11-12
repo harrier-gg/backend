@@ -7,7 +7,7 @@ import { fetchJson, type FetchJson } from './versions';
 
 /** A file to download: the agent checks size and hash before it puts it in place. */
 export interface Artifact {
-  /** null if the author does not allow downloads by other apps (CurseForge). */
+  /** null if the author does not allow downloads by other apps. */
   url: string | null;
   fileName: string;
   size: number;
