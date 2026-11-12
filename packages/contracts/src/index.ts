@@ -68,6 +68,14 @@ export const Subjects = {
   discordCallback: 'identity.discord.callback',
   /** Discord bot → identity: the account linked to a Discord user (ADR 0014). */
   discordUser: 'identity.discord.user',
+  /** Integration settings (ADR 0019): list for the panel, set, and get for other services. */
+  settingsList: 'identity.settings.list',
+  settingsSet: 'identity.settings.set',
+  settingsGet: 'identity.settings.get',
+  /** Event: settings changed; services that use them reload. */
+  settingsChanged: 'identity.settings.changed',
+  /** Discord service: whether the bot runs, as whom, and its invite link. */
+  discordStatus: 'discord.status',
 } as const;
 
 /**
@@ -455,11 +463,51 @@ export const Permissions = {
   manageServers: ['admin', 'owner'],
   manageMembers: ['admin', 'owner'],
   manageAdmins: ['owner'],
+  /** Integrations and other instance-wide settings (ADR 0019). */
+  manageInstance: ['owner'],
 } as const satisfies Record<string, readonly Role[]>;
 export type Permission = keyof typeof Permissions;
 
 export function can(role: Role, permission: Permission): boolean {
   return (Permissions[permission] as readonly Role[]).includes(role);
+}
+
+// ---- Integration settings (ADR 0019) ----
+
+export const SETTING_KEYS = ['discord.clientId', 'discord.clientSecret', 'discord.botToken', 'discord.channelId', 'curseforge.apiKey'] as const;
+export type SettingKey = (typeof SETTING_KEYS)[number];
+
+export interface SettingEntry {
+  key: SettingKey;
+  /** Secrets are never sent to the panel, only whether they are set. */
+  secret: boolean;
+  set: boolean;
+  /** The value of a setting that is not secret. */
+  value: string | null;
+  /** Set by an environment variable, which wins and cannot be changed in the panel. */
+  fromEnv: boolean;
+}
+
+export interface IntegrationSettings {
+  settings: SettingEntry[];
+  /** Whether HARRIER_APP_KEY is set; without it secrets cannot be stored. */
+  canStoreSecrets: boolean;
+  /** The redirect to add to the Discord application for the login. */
+  discordRedirectUrl: string;
+  /** The bot, as the Discord service reports it; `off` if that service does not answer. */
+  bot: DiscordBotStatus;
+}
+
+/** A value per key; null removes it. Unknown keys are refused. */
+export const SettingsSetSchema = z.object({ values: z.partialRecord(z.enum(SETTING_KEYS), z.string().trim().max(500).nullable()) });
+export const SettingsGetSchema = z.object({ keys: z.array(z.enum(SETTING_KEYS)).min(1) });
+
+export interface DiscordBotStatus {
+  state: 'off' | 'connecting' | 'online' | 'error';
+  /** The bot's name once logged in. */
+  user: string | null;
+  inviteUrl: string | null;
+  error: string | null;
 }
 
 // ---- Discord login (ADR 0008) ----

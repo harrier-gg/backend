@@ -1611,6 +1611,56 @@
           "share"
         ]
       }
+    },
+    "/settings/integrations": {
+      "get": {
+        "operationId": "settingsGet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationSettingsDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "settingsSet",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsChangeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationSettingsDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "settings"
+        ]
+      }
     }
   },
   "info": {
@@ -1749,7 +1799,8 @@
                 "sendCommands",
                 "manageServers",
                 "manageMembers",
-                "manageAdmins"
+                "manageAdmins",
+                "manageInstance"
               ]
             }
           }
@@ -2844,6 +2895,118 @@
           "mods",
           "missing"
         ]
+      },
+      "SettingEntryDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "discord.clientId",
+              "discord.clientSecret",
+              "discord.botToken",
+              "discord.channelId",
+              "curseforge.apiKey"
+            ]
+          },
+          "secret": {
+            "type": "boolean"
+          },
+          "set": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": "string",
+            "nullable": true,
+            "description": "Never a secret"
+          },
+          "fromEnv": {
+            "type": "boolean",
+            "description": "Set by an environment variable; cannot be changed here"
+          }
+        },
+        "required": [
+          "key",
+          "secret",
+          "set",
+          "value",
+          "fromEnv"
+        ]
+      },
+      "BotStatusDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "off",
+              "connecting",
+              "online",
+              "error"
+            ]
+          },
+          "user": {
+            "type": "string",
+            "nullable": true
+          },
+          "inviteUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "state",
+          "user",
+          "inviteUrl",
+          "error"
+        ]
+      },
+      "IntegrationSettingsDto": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettingEntryDto"
+            }
+          },
+          "canStoreSecrets": {
+            "type": "boolean",
+            "description": "Whether HARRIER_APP_KEY is set"
+          },
+          "discordRedirectUrl": {
+            "type": "string"
+          },
+          "bot": {
+            "$ref": "#/components/schemas/BotStatusDto"
+          }
+        },
+        "required": [
+          "settings",
+          "canStoreSecrets",
+          "discordRedirectUrl",
+          "bot"
+        ]
+      },
+      "SettingsChangeDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "A value per setting key; null or \"\" removes it",
+            "example": {
+              "discord.channelId": "1234567890"
+            }
+          }
+        }
       }
     }
   }

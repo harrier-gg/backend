@@ -18,12 +18,13 @@ import { TransferHub } from './agents/transfer-hub';
 import { BackupsController, FilesController } from './files.controller';
 import { ContentController } from './content.controller';
 import { ShareController } from './share.controller';
+import { SettingsController } from './settings.controller';
 import { ContractRef } from './openapi';
 
 const config = loadConfig();
 
 @Module({
-  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController, BackupsController, ContentController, ShareController],
+  controllers: [AuthController, DiscordController, UsersController, SystemController, AgentsController, ServersController, TemplatesController, NodesController, AgentsNatsController, FilesController, BackupsController, ContentController, ShareController, SettingsController],
   providers: [
     AgentHub,
     TransferHub,

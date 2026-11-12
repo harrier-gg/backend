@@ -15,11 +15,17 @@ import { hashToken, newToken } from './crypto';
 import type { Db } from './db';
 import { Prisma } from './generated/prisma/client';
 import { createSession, DB, fail, toUser } from './identity.controller';
+import { SETTINGS, type Settings } from './settings';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-export const discordEnabled = () => !!(config.HARRIER_DISCORD_CLIENT_ID && config.HARRIER_DISCORD_CLIENT_SECRET);
-const redirectUri = () => new URL('/api/v1/auth/discord/callback', config.HARRIER_PUBLIC_URL).toString();
+/** The Discord application for the login: from the environment or the panel (ADR 0019). */
+async function credentials(settings: Settings): Promise<{ id: string; secret: string } | null> {
+  const values = await settings.get(['discord.clientId', 'discord.clientSecret']);
+  const [id, secret] = [values['discord.clientId'], values['discord.clientSecret']];
+  return id && secret ? { id, secret } : null;
+}
+export const redirectUri = () => new URL('/api/v1/auth/discord/callback', config.HARRIER_PUBLIC_URL).toString();
 
 interface DiscordUser {
   id: string;
@@ -36,7 +42,10 @@ export class DiscordController {
   // ponytail: pending logins in memory of this instance (10 min); a shared store when identity scales out
   private readonly pending = new Map<string, DiscordStart & { expiresAt: number }>();
 
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(SETTINGS) private readonly settings: Settings,
+  ) {}
 
   /** The account a Discord user linked, for the bot (ADR 0014). */
   @MessagePattern(Subjects.discordUser)
@@ -47,14 +56,15 @@ export class DiscordController {
   }
 
   @MessagePattern(Subjects.discordEnabled)
-  enabled(): Reply<{ enabled: boolean }> {
-    return { data: { enabled: discordEnabled() } };
+  async enabled(): Promise<Reply<{ enabled: boolean }>> {
+    return { data: { enabled: (await credentials(this.settings)) !== null } };
   }
 
   /** Creates the Discord authorize URL and remembers what the login is for. */
   @MessagePattern(Subjects.discordStart)
-  start(@Payload() payload: unknown): Reply<{ url: string; state: string }> {
-    if (!discordEnabled()) return fail(404, 'Discord login is not configured');
+  async start(@Payload() payload: unknown): Promise<Reply<{ url: string; state: string }>> {
+    const app = await credentials(this.settings);
+    if (!app) return fail(404, 'Discord login is not configured');
     const request = DiscordStartSchema.safeParse(payload);
     if (!request.success) return fail(400, 'Invalid Discord login request');
 
@@ -65,7 +75,7 @@ export class DiscordController {
     const url = new URL(config.HARRIER_DISCORD_AUTHORIZE_URL);
     url.search = new URLSearchParams({
       response_type: 'code',
-      client_id: config.HARRIER_DISCORD_CLIENT_ID!,
+      client_id: app.id,
       scope: 'identify email',
       state,
       redirect_uri: redirectUri(),
@@ -130,6 +140,8 @@ export class DiscordController {
   }
 
   private async fetchProfile(code: string): Promise<DiscordUser> {
+    const app = await credentials(this.settings);
+    if (!app) throw new Error('Discord login is not configured');
     const token = await fetch(`${config.HARRIER_DISCORD_API_URL}/oauth2/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -137,8 +149,8 @@ export class DiscordController {
         grant_type: 'authorization_code',
         code,
         redirect_uri: redirectUri(),
-        client_id: config.HARRIER_DISCORD_CLIENT_ID!,
-        client_secret: config.HARRIER_DISCORD_CLIENT_SECRET!,
+        client_id: app.id,
+        client_secret: app.secret,
       }),
       signal: AbortSignal.timeout(10_000),
     });
