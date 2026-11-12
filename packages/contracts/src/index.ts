@@ -16,6 +16,7 @@ export const Subjects = {
   serversCreate: 'servers.create',
   serversStart: 'servers.start',
   serversStop: 'servers.stop',
+  serversDelete: 'servers.delete',
   serversCommand: 'servers.command',
   serversUpdateSettings: 'servers.settings',
   serversReadFile: 'servers.files.read',

@@ -261,6 +261,14 @@ export class ServersController {
     return call(this.nats, Subjects.serversStop, { id });
   }
 
+  /** Deletes a stopped server with its data and backups on the node. Cannot be undone. */
+  @Delete('servers/:id')
+  @Allow('manageServers')
+  @HttpCode(204)
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await call(this.nats, Subjects.serversDelete, { id }, 140_000); // the agent gets two minutes for large worlds
+  }
+
   /** Settings apply on the next start (a running server keeps its current ones). */
   @Put('servers/:id/settings')
   @Allow('manageServers')

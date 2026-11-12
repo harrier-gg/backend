@@ -205,6 +205,22 @@ export class ServersController {
     return this.send(server, { type: 'stopServer', serverId: server.id });
   }
 
+  /**
+   * Deletes a stopped server: the agent removes its container, data and backups, then the panel
+   * forgets it (installed content and metrics go with it). Needs the node online.
+   */
+  @MessagePattern(Subjects.serversDelete)
+  async remove(@Payload() payload: unknown): Promise<Reply<{ ok: true }>> {
+    const server = await this.find(payload);
+    if (!server) return fail(404, 'Server not found');
+    // A large world takes a while to delete.
+    const reply = await this.request(server.nodeId, { type: 'deleteServer', requestId: randomUUID(), serverId: server.id }, 120_000);
+    if ('error' in reply) return reply.error.status === 504 ? fail(504, 'The agent did not answer. It may be too old to delete servers; update it.') : reply;
+    await this.db.server.delete({ where: { id: server.id } });
+    this.logger.log(`Deleted server ${server.name} (${server.id})`);
+    return { data: { ok: true } };
+  }
+
   @MessagePattern(Subjects.serversCommand)
   async command(@Payload() payload: unknown): Promise<Reply<ServerSummary>> {
     const request = ServerCommandRequestSchema.safeParse(payload);
@@ -340,9 +356,9 @@ export class ServersController {
   }
 
   /** Sends a file request to the server's agent and waits for its `fileResult`. */
-  private async request(nodeId: string, message: PanelMessage): Promise<Reply<{ content: string | null; entries: FileEntry[] | null }>> {
+  private async request(nodeId: string, message: PanelMessage, ms = 10_000): Promise<Reply<{ content: string | null; entries: FileEntry[] | null }>> {
     const reply = await firstValueFrom(
-      this.nats.send<AgentsRequestReply>(Subjects.agentsRequest, { nodeId, message }).pipe(timeout(15_000)),
+      this.nats.send<AgentsRequestReply>(Subjects.agentsRequest, { nodeId, message, timeoutMs: ms }).pipe(timeout(ms + 5000)),
     ).catch((): AgentsRequestReply => ({ delivered: false, result: null }));
     if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
     if (!reply.result) return fail(504, 'The agent did not answer. It may be too old for editing files; update it.');
