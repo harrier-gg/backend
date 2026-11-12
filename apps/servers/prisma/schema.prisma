@@ -89,6 +89,8 @@ model InstalledContent {
   side        String?
   /// Installed because another project needs it, not picked by a user.
   dependency  Boolean  @default(false)
+  /// Projects of the same provider this version needs; for cleaning up unused dependencies.
+  requires    String[] @default([])
   installedAt DateTime @default(now()) @map("installed_at")
 
   @@unique([serverId, provider, projectId])

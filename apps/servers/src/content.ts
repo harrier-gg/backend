@@ -24,6 +24,13 @@ export interface ContentVersion {
   side: ContentSide | null;
 }
 
+/** An installed file the panel asks about: which project, and its hashes. */
+export interface InstalledFile {
+  projectId: string;
+  sha512: string | null;
+  sha1: string | null;
+}
+
 export interface ContentProvider {
   /** Checks a template's source options; throws with a clear message when they are wrong. */
   parse(options: unknown): unknown;
@@ -32,6 +39,34 @@ export interface ContentProvider {
   latest(options: unknown, projectId: string, gameVersion: string): Promise<ContentVersion | null>;
   /** A project's name, for dependencies the user did not pick themselves. */
   project(projectId: string): Promise<ContentProject>;
+  /**
+   * The newest fitting version for each installed project, or null if none fits the game
+   * version any more (e.g. after changing it). Projects the provider cannot answer for are left out.
+   */
+  updates(options: unknown, files: InstalledFile[], gameVersion: string): Promise<Map<string, ContentVersion | null>>;
+}
+
+/** `updates` for providers without a bulk request: one `latest` per project. */
+export async function updatesOneByOne(provider: ContentProvider, options: unknown, files: InstalledFile[], gameVersion: string) {
+  const updates = new Map<string, ContentVersion | null>();
+  for (const file of files) updates.set(file.projectId, await provider.latest(options, file.projectId, gameVersion));
+  return updates;
+}
+
+/**
+ * Dependencies nobody needs any more once `removed` is gone, also dependencies of those
+ * (ADR 0017). Only content installed as a dependency is ever cleaned up.
+ */
+export function orphans<T extends { id: string; provider: string; projectId: string; dependency: boolean; requires: string[] }>(all: T[], removed: T[]): T[] {
+  const gone = new Set(removed.map((r) => r.id));
+  const found: T[] = [];
+  for (;;) {
+    const left = all.filter((r) => !gone.has(r.id));
+    const next = left.filter((r) => r.dependency && !left.some((o) => o.id !== r.id && o.provider === r.provider && o.requires.includes(r.projectId)));
+    if (next.length === 0) return found;
+    for (const r of next) gone.add(r.id);
+    found.push(...next);
+  }
 }
 
 // ---- Modrinth (https://docs.modrinth.com/api/) ----
@@ -83,6 +118,18 @@ function sideOfEnvironment(environment?: string): ContentSide | null {
   return 'both';
 }
 
+/** A Modrinth version in the shape all providers share. */
+function toVersion(version: ModrinthVersion): ContentVersion {
+  const file = version.files.find((f) => f.primary) ?? version.files[0];
+  return {
+    id: version.id,
+    name: version.version_number,
+    artifact: { url: file.url, fileName: file.filename, size: file.size, sha512: file.hashes.sha512, sha1: file.hashes.sha1 },
+    requires: version.dependencies.filter((d) => d.dependency_type === 'required' && d.project_id).map((d) => d.project_id!),
+    side: sideOfEnvironment(version.environment),
+  };
+}
+
 export function modrinth(fetch: FetchJson = fetchJson): ContentProvider {
   const get = (path: string, params: Record<string, string>) => fetch(`${MODRINTH}${path}?${new URLSearchParams(params)}`);
   const project = (hit: ModrinthHit): ContentProject => ({
@@ -110,17 +157,24 @@ export function modrinth(fetch: FetchJson = fetchJson): ContentProvider {
         ...(gameVersion ? { game_versions: JSON.stringify([gameVersion]) } : {}),
         include_changelog: 'false',
       })) as ModrinthVersion[];
-      // Newest first; a stable release before betas when there is one.
-      const version = versions[0];
-      if (!version) return null;
-      const file = version.files.find((f) => f.primary) ?? version.files[0];
-      return {
-        id: version.id,
-        name: version.version_number,
-        artifact: { url: file.url, fileName: file.filename, size: file.size, sha512: file.hashes.sha512, sha1: file.hashes.sha1 },
-        requires: version.dependencies.filter((d) => d.dependency_type === 'required' && d.project_id).map((d) => d.project_id!),
-        side: sideOfEnvironment(version.environment),
-      };
+      // Newest first.
+      return versions[0] ? toVersion(versions[0]) : null;
+    },
+    /** One request for all files: Modrinth finds each project by the file's hash. */
+    async updates(options, files, gameVersion) {
+      const o = options as ModrinthOptions;
+      const byHash = new Map(files.filter((f) => f.sha512).map((f) => [f.sha512!.toLowerCase(), f.projectId]));
+      const updates = new Map<string, ContentVersion | null>();
+      if (byHash.size === 0) return updates;
+      const found = (await fetch(`${MODRINTH}/version_files/update`, {
+        hashes: [...byHash.keys()],
+        algorithm: 'sha512',
+        loaders: [o.loader],
+        ...(gameVersion ? { game_versions: [gameVersion] } : {}),
+      })) as Record<string, ModrinthVersion>;
+      // A hash without an answer has no version for this game version (any more).
+      for (const [hash, projectId] of byHash) updates.set(projectId, found[hash] ? toVersion(found[hash]) : null);
+      return updates;
     },
     async project(projectId) {
       const p = (await fetch(`${MODRINTH}/project/${encodeURIComponent(projectId)}`)) as ModrinthHit & { id: string; client_side: string; server_side: string };

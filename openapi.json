@@ -1436,6 +1436,80 @@
         ]
       }
     },
+    "/servers/{id}/content/updates": {
+      "get": {
+        "operationId": "contentUpdates",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContentUpdateDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "content"
+        ]
+      }
+    },
+    "/servers/{id}/content/{contentId}/update": {
+      "post": {
+        "operationId": "contentUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstalledContentDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "content"
+        ]
+      }
+    },
     "/servers/{id}/content/{contentId}": {
       "delete": {
         "operationId": "contentRemove",
@@ -1458,8 +1532,18 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstalledContentDto"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -2617,6 +2701,28 @@
           "kind",
           "source",
           "projectId"
+        ]
+      },
+      "ContentUpdateDto": {
+        "type": "object",
+        "properties": {
+          "contentId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "nullable": true,
+            "description": "The newer version; null if nothing fits the server any more"
+          },
+          "incompatible": {
+            "type": "boolean",
+            "description": "No version fits the server's game version"
+          }
+        },
+        "required": [
+          "contentId",
+          "version",
+          "incompatible"
         ]
       }
     }

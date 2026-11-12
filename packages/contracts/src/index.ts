@@ -24,6 +24,8 @@ export const Subjects = {
   serversContentSearch: 'servers.content.search',
   serversContentInstall: 'servers.content.install',
   serversContentRemove: 'servers.content.remove',
+  serversContentUpdates: 'servers.content.updates',
+  serversContentUpdate: 'servers.content.update',
   serversBackups: 'servers.backups',
   serversBackupCreate: 'servers.backups.create',
   serversBackupDelete: 'servers.backups.delete',
@@ -222,6 +224,14 @@ const ContentRef = ServerIdSchema.extend({ kind: z.string().regex(/^[a-z][a-z-]{
 export const ContentSearchSchema = ContentRef.extend({ query: z.string().max(100).default('') });
 export const ContentInstallSchema = ContentRef.extend({ projectId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) });
 export const ContentRemoveSchema = ServerIdSchema.extend({ contentId: z.string().uuid() });
+
+/** Installed content with a newer fitting version, or none that fits the server any more. */
+export interface ContentUpdate {
+  contentId: string;
+  /** The newer version; null if nothing fits the server's game version (`incompatible`). */
+  version: string | null;
+  incompatible: boolean;
+}
 
 // ---- Backups (ADR 0016) ----
 

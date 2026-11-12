@@ -11,11 +11,18 @@ const MOJANG_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest
 const PAPER_PROJECT = 'https://fill.papermc.io/v3/projects/paper';
 const FABRIC_GAME = 'https://meta.fabricmc.net/v2/versions/game';
 
-export type FetchJson = (url: string) => Promise<unknown>;
+/** GET, or POST with a JSON body. */
+export type FetchJson = (url: string, body?: unknown) => Promise<unknown>;
 
 /** PaperMC asks API clients to identify themselves. */
-export const fetchJson: FetchJson = async (url) => {
-  const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: { 'user-agent': 'Harrier panel (https://github.com/harrier-gg)' } });
+export const fetchJson: FetchJson = async (url, body) => {
+  const headers: Record<string, string> = { 'user-agent': 'Harrier panel (https://github.com/harrier-gg)' };
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(5000),
+    headers,
+    ...(body !== undefined ? { method: 'POST', body: JSON.stringify(body) } : {}),
+  });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return res.json();
 };
