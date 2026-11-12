@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkedFileName, modrinth, orphans } from './content';
+import { checkedFileName, hangar, modrinth, orphans } from './content';
 import { TemplateCatalog } from './templates';
 
 const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../../../templates'));
@@ -101,4 +101,46 @@ test('removing content cleans up dependencies nobody needs any more', () => {
   assert.deepEqual(orphans([chunky, lithium, api, lib], [chunky]).map((r) => r.id), ['fabric-api', 'lib'], 'also dependencies of dependencies');
   assert.deepEqual(orphans([chunky, modMenu, api, lib], [chunky]), [], 'still needed by Mod Menu');
   assert.deepEqual(orphans([chunky, api, row('picked', false)], [chunky]).map((r) => r.id), ['fabric-api'], 'what a user picked stays');
+});
+
+test('hangar: release channel first, SHA-256, Hangar dependencies only', async () => {
+  const urls: string[] = [];
+  const version = (name: string, file: boolean) => ({
+    id: 7,
+    name,
+    downloads: {
+      PAPER: file
+        ? { fileInfo: { name: 'ViaBackwards-5.1.jar', sizeBytes: 3, sha256Hash: 'abc' }, downloadUrl: 'https://hangarcdn.papermc.io/v.jar' }
+        : { fileInfo: null, downloadUrl: null },
+    },
+    pluginDependencies: {
+      PAPER: [
+        { projectId: 31, required: true },
+        { projectId: 112, required: false },
+        { projectId: null, required: true },
+      ],
+    },
+  });
+  const provider = hangar(async (url) => {
+    urls.push(url);
+    if (url.includes('/projects/12/versions')) return { result: url.includes('channel=Release') ? [version('5.1', true)] : [] };
+    if (url.includes('/projects/40/versions')) return { result: url.includes('channel=Release') ? [] : [version('2.0-SNAPSHOT', false)] };
+    throw new Error(url);
+  });
+  const options = provider.parse({ provider: 'hangar', platform: 'PAPER' });
+
+  assert.deepEqual(await provider.latest(options, '12', '1.21.4'), {
+    id: '7',
+    name: '5.1',
+    artifact: { url: 'https://hangarcdn.papermc.io/v.jar', fileName: 'ViaBackwards-5.1.jar', size: 3, sha256: 'abc' },
+    requires: ['31'],
+    side: 'server',
+  });
+  assert.match(urls[0], /platform=PAPER&platformVersion=1\.21\.4&channel=Release/);
+
+  // No release: the newest of any channel; a file only linked elsewhere has no URL.
+  const linked = await provider.latest(options, '40', '1.21.4');
+  assert.equal(linked?.name, '2.0-SNAPSHOT');
+  assert.equal(linked?.artifact.url, null);
+  assert.throws(() => provider.parse({ provider: 'hangar', platform: 'paper' }));
 });

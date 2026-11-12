@@ -7,12 +7,13 @@ import { fetchJson, type FetchJson } from './versions';
 
 /** A file to download: the agent checks size and hash before it puts it in place. */
 export interface Artifact {
-  /** null if the author does not allow downloads by other apps. */
+  /** null if the file is not hosted by the platform (e.g. only linked elsewhere). */
   url: string | null;
   fileName: string;
   size: number;
   sha512?: string;
   sha1?: string;
+  sha256?: string;
 }
 
 export interface ContentVersion {
@@ -183,11 +184,90 @@ export function modrinth(fetch: FetchJson = fetchJson): ContentProvider {
   };
 }
 
+// ---- Hangar, PaperMC's plugin platform (https://hangar.papermc.io/api-docs) ----
+
+const HANGAR = 'https://hangar.papermc.io/api/v1';
+const HangarOptions = z.object({
+  provider: z.literal('hangar'),
+  platform: z.enum(['PAPER', 'VELOCITY', 'WATERFALL']),
+});
+type HangarOptions = z.infer<typeof HangarOptions>;
+
+interface HangarProject {
+  id: number;
+  name: string;
+  namespace: { owner: string; slug: string };
+  description: string;
+  stats: { downloads: number };
+  avatarUrl: string | null;
+}
+
+interface HangarVersion {
+  id: number;
+  name: string;
+  downloads: Record<string, { fileInfo: { name: string; sizeBytes: number; sha256Hash: string } | null; downloadUrl: string | null }>;
+  pluginDependencies: Record<string, { projectId: number | null; required: boolean }[]>;
+}
+
+export function hangar(fetch: FetchJson = fetchJson): ContentProvider {
+  const get = (path: string, params: Record<string, string> = {}) => fetch(`${HANGAR}${path}?${new URLSearchParams(params)}`);
+  const project = (p: HangarProject): ContentProject => ({
+    id: String(p.id),
+    name: p.name,
+    summary: p.description,
+    author: p.namespace.owner,
+    downloads: p.stats.downloads,
+    iconUrl: p.avatarUrl,
+    pageUrl: `https://hangar.papermc.io/${p.namespace.owner}/${p.namespace.slug}`,
+    // Plugins run on the server only.
+    side: 'server',
+  });
+  const versions = async (o: HangarOptions, projectId: string, gameVersion: string, channel?: string) =>
+    (
+      (await get(`/projects/${encodeURIComponent(projectId)}/versions`, {
+        platform: o.platform,
+        ...(gameVersion ? { platformVersion: gameVersion } : {}),
+        ...(channel ? { channel } : {}),
+        limit: '1',
+      })) as { result: HangarVersion[] }
+    ).result;
+  const provider: ContentProvider = {
+    parse: (options) => HangarOptions.parse(options),
+    async search(options, query, gameVersion) {
+      const o = options as HangarOptions;
+      const result = (await get('/projects', { q: query, platform: o.platform, ...(gameVersion ? { version: gameVersion } : {}), limit: '20' })) as { result: HangarProject[] };
+      return result.result.map(project);
+    },
+    async latest(options, projectId, gameVersion) {
+      const o = options as HangarOptions;
+      // Channels are named by each project; most call stable builds "Release". Without one, the newest.
+      const version = (await versions(o, projectId, gameVersion, 'Release'))[0] ?? (await versions(o, projectId, gameVersion))[0];
+      if (!version) return null;
+      const download = version.downloads[o.platform];
+      const file = download?.fileInfo;
+      return {
+        id: String(version.id),
+        name: version.name,
+        // Plugins only linked elsewhere (GitHub, SpigotMC) have no file on Hangar.
+        artifact: { url: file ? download.downloadUrl : null, fileName: file?.name ?? '', size: file?.sizeBytes ?? 0, sha256: file?.sha256Hash },
+        // Dependencies outside Hangar have no project ID; the user installs them themselves.
+        requires: (version.pluginDependencies[o.platform] ?? []).filter((d) => d.required && d.projectId !== null).map((d) => String(d.projectId)),
+        side: 'server',
+      };
+    },
+    updates: (options, files, gameVersion) => updatesOneByOne(provider, options, files, gameVersion),
+    async project(projectId) {
+      return project((await get(`/projects/${encodeURIComponent(projectId)}`)) as HangarProject);
+    },
+  };
+  return provider;
+}
+
 /** Providers by the name templates use. */
 export type Providers = Record<string, ContentProvider>;
 
 export function providers(fetch: FetchJson = fetchJson): Providers {
-  return { modrinth: modrinth(fetch) };
+  return { modrinth: modrinth(fetch), hangar: hangar(fetch) };
 }
 
 /** Safe file names only: what the agent writes is `<kind path>/<file name>`. */

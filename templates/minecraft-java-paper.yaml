@@ -17,3 +17,4 @@ content:
     path: plugins
     sources:
       - { provider: modrinth, type: plugin, loader: paper }
+      - { provider: hangar, platform: PAPER }

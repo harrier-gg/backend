@@ -168,7 +168,7 @@ export class ContentController {
     if (version === undefined) return fail(502, `${row.provider} is not reachable right now`);
     if (!version) return fail(422, `${row.name} has no version for ${gameVersion || 'this server'}`);
     if (version.id === row.versionId) return fail(409, `${row.name} is up to date`);
-    if (!version.artifact.url) return fail(422, `${row.name}'s author does not allow downloads by other apps`);
+    if (!version.artifact.url) return fail(422, `${row.name} has no file to download here; get it from the project page`);
 
     const installed = new Set((await this.db.installedContent.findMany({ where: { serverId: row.serverId, provider: row.provider } })).map((r) => r.projectId));
     let plan: Planned[];
@@ -235,6 +235,7 @@ export class ContentController {
       size: artifact.size,
       sha512: artifact.sha512 ?? null,
       sha1: artifact.sha1 ?? null,
+      sha256: artifact.sha256 ?? null,
     });
     if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
     const error = reply.result?.error ?? (reply.result ? null : 'The agent did not answer in time');
@@ -277,7 +278,7 @@ export class ContentController {
       const version = await provider.latest(options, next.projectId, gameVersion);
       const name = next.dependency ? `A required dependency (${next.projectId})` : 'This project';
       if (!version) throw new Error(`${name} has no version for ${gameVersion || 'this server'}`);
-      if (!version.artifact.url) throw new Error(`${name}'s author does not allow downloads by other apps; download it on the project page and upload it with the file manager`);
+      if (!version.artifact.url) throw new Error(`${name} has no file to download here (its author offers it elsewhere); get it from the project page and upload it with the file manager`);
       plan.push({ ...next, version });
       for (const dependency of version.requires) queue.push({ projectId: dependency, dependency: true });
     }
