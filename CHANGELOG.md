@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/harrier-gg/backend/compare/v0.6.0...v0.7.0) (2026-11-12)
+
+
+### Features
+
+* content providers with Modrinth, installed content and dependencies ([#29](https://github.com/harrier-gg/backend/issues/29)) ([94d1330](https://github.com/harrier-gg/backend/commit/94d13303ba6b369d9d40aa752a9a8b6443c51272))
+* content updates, incompatibility after version changes, dependency cleanup ([#31](https://github.com/harrier-gg/backend/issues/31)) ([08a692b](https://github.com/harrier-gg/backend/commit/08a692bd27988389368ffc6d0f36347acaa10d25))
+
 ## [0.6.0](https://github.com/harrier-gg/backend/compare/v0.5.0...v0.6.0) (2026-11-11)
 
 
