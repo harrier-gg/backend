@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { TemplateCatalog } from './templates';
 import { checkVersion, imageForJava, resolveVersion, VersionProviders, type FetchJson } from './versions';
 
-const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../../../templates'));
+const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates'));
 
 /** Answers like the real sources, without the network. */
 function fakeSources(): { fetch: FetchJson; calls: string[]; down: Set<string> } {

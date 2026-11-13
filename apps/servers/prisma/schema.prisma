@@ -100,3 +100,13 @@ model InstalledContent {
   @@map("installed_content")
   @@schema("servers")
 }
+
+/// The last good index from HARRIER_TEMPLATES_URL, so the panel starts without network (ADR 0021).
+model TemplateCache {
+  id        Int      @id @default(1)
+  index     Json
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  @@map("template_cache")
+  @@schema("servers")
+}

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { checkedFileName, hangar, modrinth, orphans } from './content';
 import { TemplateCatalog } from './templates';
 
-const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../../../templates'));
+const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates'));
 
 test('templates name their content kinds and sources (ADR 0017)', () => {
   assert.deepEqual(catalog.list().find((t) => t.id === 'minecraft-java/fabric')?.content, [
