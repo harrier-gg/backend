@@ -16,6 +16,7 @@ export const Subjects = {
   serversGet: 'servers.get',
   serversCreate: 'servers.create',
   serversStart: 'servers.start',
+  serversReinstall: 'servers.reinstall',
   serversStop: 'servers.stop',
   serversDelete: 'servers.delete',
   serversCommand: 'servers.command',
@@ -135,7 +136,8 @@ export interface TemplateConfigField {
   /**
    * `version`: pick from `GET /templates/versions` (ADR 0012). `modpack`: a Modrinth modpack as
    * its name or link from modrinth.com; the image installs it (ADR 0020). `boolean`: true or false.
-   * `secret`: text like `string` that is not shown in clear (passwords, tokens).
+   * `secret`: text like `string` (passwords, tokens); only users who manage servers see it, and an empty default
+   * means the panel generates one per server.
    */
   type: 'string' | 'integer' | 'version' | 'modpack' | 'boolean' | 'secret';
   default: SettingValue;
@@ -172,11 +174,19 @@ export interface TemplateSummary {
   content: { kind: string; label: LocalizedText; path: string; sources: string[] }[];
   /** Pack format for sharing player content (ADR 0018); null if the game shares nothing. */
   share: 'mrpack' | null;
+  /** `script`: an install script prepares the server before its first start and can run again (ADR 0022). */
+  install: 'image' | 'script';
 }
 
 /** `sleeping`: stopped because nobody was online; joining or starting wakes it (ADR 0013). */
 export const ServerStatusSchema = z.enum(['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed', 'sleeping']);
 export type ServerStatus = z.infer<typeof ServerStatusSchema>;
+
+export interface ServerPort {
+  name: string;
+  port: number;
+  protocol: 'tcp' | 'udp';
+}
 
 export interface ServerSummary {
   id: string;
@@ -186,6 +196,8 @@ export interface ServerSummary {
   settings: Record<string, SettingValue>;
   /** Address players connect to: the node's host plus this port. */
   hostPort: number;
+  /** All ports of the server on the node, the first one is `hostPort` (ADR 0022). */
+  ports: ServerPort[];
   status: ServerStatus;
   statusMessage: string | null;
   createdAt: string;

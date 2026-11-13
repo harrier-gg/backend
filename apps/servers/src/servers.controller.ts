@@ -37,7 +37,7 @@ import type { Db } from './db';
 import { DB } from './nodes.controller';
 import { createNode } from './node-token';
 import { checkVersion, resolveVersion, type VersionProviders } from './versions';
-import { buildSpec, knownSettings, validateSettings, type Settings, type TemplateCatalog } from './templates';
+import { buildSpec, freePort, knownSettings, maskSecrets, portSpan, serverPorts, validateSettings, type Settings, type Template, type TemplateCatalog } from './templates';
 
 export const NATS = Symbol('NATS');
 export const TEMPLATES = Symbol('TEMPLATES');
@@ -47,6 +47,9 @@ type ServerRow = Awaited<ReturnType<Db['server']['findFirstOrThrow']>>;
 
 const fail = (status: number, detail: string) => ({ error: { status, detail } });
 
+/** Whether the gateway asked for secret settings in clear (only for users who may manage servers). */
+const reveals = (payload: unknown) => (payload as { secrets?: unknown } | null)?.secrets === true;
+
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 /** Time span and bucket size per graph range (ADR 0009). */
 const RANGES: Record<MetricsRange, { spanMs: number; step: string }> = {
@@ -55,14 +58,20 @@ const RANGES: Record<MetricsRange, { spanMs: number; step: string }> = {
   '7d': { spanMs: RETENTION_MS, step: '1 hour' },
 };
 
-function toSummary(s: ServerRow): ServerSummary {
+/**
+ * `reveal`: the caller may manage servers and sees secret settings (the gateway decides);
+ * everyone else gets them empty.
+ */
+function toSummary(s: ServerRow, template: Template | undefined, reveal: boolean): ServerSummary {
+  const settings = s.settings as Settings;
   return {
     id: s.id,
     name: s.name,
     nodeId: s.nodeId,
     templateId: s.templateId,
-    settings: s.settings as Settings,
+    settings: reveal ? settings : maskSecrets(template, settings),
     hostPort: s.hostPort,
+    ports: template ? serverPorts(template, s.hostPort) : [{ name: 'game', port: s.hostPort, protocol: 'tcp' }],
     status: ServerStatusSchema.catch('stopped').parse(s.status),
     statusMessage: s.statusMessage,
     createdAt: s.createdAt.toISOString(),
@@ -137,15 +146,15 @@ export class ServersController {
   }
 
   @MessagePattern(Subjects.serversList)
-  async list(): Promise<Reply<ServerSummary[]>> {
+  async list(@Payload() payload: unknown): Promise<Reply<ServerSummary[]>> {
     const servers = await this.db.server.findMany({ orderBy: { createdAt: 'asc' } });
-    return { data: servers.map(toSummary) };
+    return { data: servers.map((s) => this.summary(s, reveals(payload))) };
   }
 
   @MessagePattern(Subjects.serversGet)
   async get(@Payload() payload: unknown): Promise<Reply<ServerSummary>> {
     const server = await this.find(payload);
-    return server ? { data: toSummary(server) } : fail(404, 'Server not found');
+    return server ? { data: this.summary(server, reveals(payload)) } : fail(404, 'Server not found');
   }
 
   @MessagePattern(Subjects.serversCreate)
@@ -162,18 +171,18 @@ export class ServersController {
     if (unknownVersion) return fail(400, unknownVersion);
     if (!(await this.db.node.findUnique({ where: { id: nodeId } }))) return fail(400, 'Unknown node');
 
-    // ponytail: first free port from the template's default upwards; port ranges per node later
-    const used = new Set((await this.db.server.findMany({ where: { nodeId }, select: { hostPort: true } })).map((s) => s.hostPort));
-    let hostPort = template.ports[0].container;
-    while (used.has(hostPort)) hostPort++;
+    if (await this.db.server.findFirst({ where: { nodeId, name } })) return fail(409, `A server named "${name}" already exists on this node`);
+    const hostPort = await this.freePorts(nodeId, template);
+    if (!hostPort) return fail(409, 'No free ports left on this node');
 
     try {
       const server = await this.db.server.create({
         data: { nodeId, name, templateId, settings: validated.settings, hostPort },
       });
-      return { data: toSummary(server) };
+      return { data: toSummary(server, template, true) };
     } catch (error) {
-      if ((error as { code?: string }).code === 'P2002') return fail(409, `A server named "${name}" already exists on this node`);
+      // Another server was created at the same moment with the same name or ports.
+      if ((error as { code?: string }).code === 'P2002') return fail(409, 'Another server just took this name or port. Try again.');
       throw error;
     }
   }
@@ -188,8 +197,8 @@ export class ServersController {
     if ('error' in validated) return fail(409, `Stored settings no longer match the template: ${validated.error}`);
 
     const resolved = await resolveVersion(this.versions, template, validated.settings);
-    const spec = buildSpec(template, resolved.settings, server.hostPort, resolved.image);
-    return this.send(server, { type: 'startServer', serverId: server.id, spec });
+    const spec = buildSpec(template, resolved.settings, server.hostPort, resolved.image, server.installedAt === null);
+    return this.send(server, { type: 'startServer', serverId: server.id, spec }, reveals(payload));
   }
 
   @MessagePattern(Subjects.serversUpdateSettings)
@@ -200,19 +209,39 @@ export class ServersController {
     if (!server) return fail(404, 'Server not found');
     const template = this.templates.get(server.templateId);
     if (!template) return fail(409, `The template "${server.templateId}" no longer exists`);
-    const validated = validateSettings(template, { ...knownSettings(template, server.settings as Settings), ...request.data.settings });
+    // An empty secret keeps the stored one: the form shows secrets empty to keep them out of sight.
+    const changes = Object.fromEntries(
+      Object.entries(request.data.settings).filter(([k, v]) => v !== '' || !template.config.some((f) => f.key === k && f.type === 'secret')),
+    );
+    const validated = validateSettings(template, { ...knownSettings(template, server.settings as Settings), ...changes });
     if ('error' in validated) return fail(400, validated.error);
     const unknownVersion = await checkVersion(this.versions, template, validated.settings);
     if (unknownVersion) return fail(400, unknownVersion);
     const updated = await this.db.server.update({ where: { id: server.id }, data: { settings: validated.settings } });
-    return { data: toSummary(updated) };
+    return { data: toSummary(updated, template, true) };
   }
 
   @MessagePattern(Subjects.serversStop)
   async stop(@Payload() payload: unknown): Promise<Reply<ServerSummary>> {
     const server = await this.find(payload);
     if (!server) return fail(404, 'Server not found');
-    return this.send(server, { type: 'stopServer', serverId: server.id });
+    return this.send(server, { type: 'stopServer', serverId: server.id }, reveals(payload));
+  }
+
+  /**
+   * Runs the template's install script again at the next start (ADR 0022), e.g. to repair or
+   * update the game files. The script decides what it keeps; eggs keep worlds and configs.
+   */
+  @MessagePattern(Subjects.serversReinstall)
+  async reinstall(@Payload() payload: unknown): Promise<Reply<ServerSummary>> {
+    const server = await this.find(payload);
+    if (!server) return fail(404, 'Server not found');
+    const template = this.templates.get(server.templateId);
+    if (template?.install.method !== 'script') return fail(409, 'This server has no install script');
+    // A running (or sleeping) server would report "running" again and count as installed.
+    if (!['stopped', 'crashed'].includes(server.status)) return fail(409, 'Stop the server first');
+    const updated = await this.db.server.update({ where: { id: server.id }, data: { installedAt: null } });
+    return { data: toSummary(updated, template, true) };
   }
 
   /**
@@ -237,7 +266,7 @@ export class ServersController {
     if (!request.success) return fail(400, 'Invalid command');
     const server = await this.find({ id: request.data.id });
     if (!server) return fail(404, 'Server not found');
-    return this.send(server, { type: 'sendCommand', serverId: server.id, command: request.data.command });
+    return this.send(server, { type: 'sendCommand', serverId: server.id, command: request.data.command }, reveals(payload));
   }
 
   /** Status reports from agents. Only servers on the reporting node can be updated. */
@@ -252,6 +281,10 @@ export class ServersController {
       data: { status: message.status, statusMessage: message.message ?? null, ...(message.status === 'running' ? { activeSinceBackup: true } : {}) },
     });
     if (updated.count === 0) this.logger.warn(`Ignoring status for unknown server ${message.serverId} from node ${nodeId}`);
+    // Running means the install script (if any) finished; the next start skips it.
+    else if (message.status === 'running') {
+      await this.db.server.updateMany({ where: { id: message.serverId, installedAt: null }, data: { installedAt: new Date() } });
+    }
   }
 
   /** Per-minute values from the gateway. Only servers on the reporting node are stored. */
@@ -381,11 +414,28 @@ export class ServersController {
     return request.success ? this.db.server.findUnique({ where: { id: request.data.id } }) : null;
   }
 
-  private async send(server: ServerRow, message: PanelMessage): Promise<Reply<ServerSummary>> {
+  private summary(server: ServerRow, reveal: boolean): ServerSummary {
+    return toSummary(server, this.templates.get(server.templateId), reveal);
+  }
+
+  /**
+   * The lowest first port, from the template's usual one up, whose whole span is free on the
+   * node. Spans of other servers come from their templates (TCP and UDP count as one).
+   */
+  private async freePorts(nodeId: string, template: Template): Promise<number | null> {
+    // ponytail: linear scan over the node's servers; fine for dozens, an index when nodes host hundreds
+    const taken = (await this.db.server.findMany({ where: { nodeId }, select: { hostPort: true, templateId: true } })).map((s) => {
+      const other = this.templates.get(s.templateId);
+      return [s.hostPort, s.hostPort + (other ? portSpan(other) : 1)] as const;
+    });
+    return freePort(taken, template.ports[0].container, portSpan(template));
+  }
+
+  private async send(server: ServerRow, message: PanelMessage, reveal: boolean): Promise<Reply<ServerSummary>> {
     const reply = await firstValueFrom(
       this.nats.send<AgentsSendReply>(Subjects.agentsSend, { nodeId: server.nodeId, message }).pipe(timeout(3000)),
     ).catch(() => ({ delivered: false }));
     if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
-    return { data: toSummary(server) };
+    return { data: this.summary(server, reveal) };
   }
 }

@@ -606,6 +606,36 @@
         ]
       }
     },
+    "/servers/{id}/reinstall": {
+      "post": {
+        "operationId": "serversReinstall",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "servers"
+        ]
+      }
+    },
     "/servers/{id}/stop": {
       "post": {
         "operationId": "serversStop",
@@ -2154,6 +2184,31 @@
           "connectedAt"
         ]
       },
+      "ServerPortDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "game"
+          },
+          "port": {
+            "type": "number",
+            "example": 2456
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "tcp",
+              "udp"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "port",
+          "protocol"
+        ]
+      },
       "ServerDto": {
         "type": "object",
         "properties": {
@@ -2189,6 +2244,13 @@
             "type": "number",
             "description": "Port players connect to on the node"
           },
+          "ports": {
+            "description": "All ports of the server on the node; the first is hostPort",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerPortDto"
+            }
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -2217,6 +2279,7 @@
           "templateId",
           "settings",
           "hostPort",
+          "ports",
           "status",
           "statusMessage",
           "createdAt"
@@ -2545,6 +2608,14 @@
             "items": {
               "$ref": "#/components/schemas/TemplateConfigFieldDto"
             }
+          },
+          "install": {
+            "type": "string",
+            "enum": [
+              "image",
+              "script"
+            ],
+            "description": "`script`: an install script runs before the first start and on reinstall (ADR 0022)"
           }
         },
         "required": [
@@ -2554,7 +2625,8 @@
           "files",
           "content",
           "share",
-          "config"
+          "config",
+          "install"
         ]
       },
       "GameVersionDto": {

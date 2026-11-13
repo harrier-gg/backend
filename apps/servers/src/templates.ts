@@ -1,7 +1,8 @@
 // Templates (ADR 0005, 0021): load them, resolve `extends`, validate settings and build the
 // game-neutral runtime spec the agent executes. Everything game-specific stays here.
-import type { SettingValue, TemplateConfigField, TemplateSummary } from '@harrier-gg/contracts';
+import type { ServerPort, SettingValue, TemplateConfigField, TemplateSummary } from '@harrier-gg/contracts';
 import type { RuntimeSpec } from '@harrier-gg/protocol';
+import { randomInt } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
@@ -183,7 +184,6 @@ function checkValue(field: Field, value: unknown): string | null {
     case 'string':
     case 'secret':
       if (typeof value !== 'string') return 'must be text';
-      // ponytail: an empty secret is refused until the panel generates one per server (ADR 0022)
       if (field.type === 'secret' && value === '') return 'must not be empty';
       if (field.min !== undefined && value.length < field.min) return `must be at least ${field.min} characters`;
       if (field.max !== undefined && value.length > field.max) return `must be at most ${field.max} characters`;
@@ -288,6 +288,7 @@ export class TemplateCatalog {
       files: t.files,
       content: t.content.map((c) => ({ kind: c.kind, label: c.label, path: c.path, sources: c.sources.map((s) => s.provider) })),
       share: t.share?.format ?? null,
+      install: t.install.method,
     }));
   }
 }
@@ -304,12 +305,47 @@ export function validateSettings(template: Template, input: Settings): { setting
 
   const settings: Settings = {};
   for (const field of template.config) {
-    const value = input[field.key] ?? field.default;
+    let value = input[field.key] ?? field.default;
+    // An empty secret gets a random value, so no two servers share a template's password (ADR 0022).
+    if (field.type === 'secret' && value === '') value = randomSecret(field);
     const problem = checkValue(field, value);
     if (problem) return { error: `${field.key} ${problem}` };
     settings[field.key] = value;
   }
   return { settings };
+}
+
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+
+/** Letters and digits players can type, 16 long unless the field asks otherwise. */
+function randomSecret(field: Field): string {
+  const length = Math.min(Math.max(16, field.min ?? 0), field.max ?? 16);
+  return Array.from({ length }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
+}
+
+/** Settings with secret values emptied, for users who may not manage the server. */
+export function maskSecrets(template: Template | undefined, settings: Settings): Settings {
+  if (!template) return settings;
+  return Object.fromEntries(Object.entries(settings).map(([k, v]) => [k, template.config.some((f) => f.key === k && f.type === 'secret') ? '' : v]));
+}
+
+/** How many consecutive host ports a server of this template takes, from its first one. */
+export function portSpan(template: Template): number {
+  return Math.max(...template.ports.map((p) => p.offset)) + 1;
+}
+
+/** The lowest port from `start` up where `span` ports overlap none of the `taken` ranges [from, to). */
+export function freePort(taken: readonly (readonly [number, number])[], start: number, span: number): number | null {
+  for (let port = start; port + span - 1 <= 65535; port++) {
+    const end = port + span;
+    if (taken.every(([from, to]) => end <= from || port >= to)) return port;
+  }
+  return null;
+}
+
+/** The host ports of a server whose ports start at `hostPort`. */
+export function serverPorts(template: Template, hostPort: number): ServerPort[] {
+  return template.ports.map((p) => ({ name: p.name, port: hostPort + p.offset, protocol: p.protocol }));
 }
 
 /** What players see while a server sleeps, in English and German (one line each). */
@@ -318,30 +354,40 @@ export const WAKE_TEXTS = {
   join: 'Waking up – join again in a minute.\nWird geweckt – tritt in einer Minute wieder bei.',
 };
 
-/** Turns template + validated settings into the game-neutral spec the agent runs (ADR 0005). */
-export function buildSpec(template: Template, settings: Settings, hostPort: number, image = template.runtime.image): RuntimeSpec {
+/**
+ * Turns template + validated settings into the game-neutral spec the agent runs (ADR 0005).
+ * `install`: run the template's install script first (a new server, or one being reinstalled).
+ */
+export function buildSpec(template: Template, settings: Settings, hostPort: number, image = template.runtime.image, install = false): RuntimeSpec {
   const env = { ...template.runtime.env };
   let memoryMb = 1024;
   let sleepMinutes = 0;
   for (const field of template.config) {
     const value = settings[field.key];
-    if (field.env) env[field.env] = String(value);
+    if (field.env) env[field.env] = field.type === 'boolean' ? (value ? (field.values?.on ?? 'true') : (field.values?.off ?? 'false')) : String(value);
     if (field.limit === 'memory') memoryMb = Number(value);
     if (field.limit === 'sleep') sleepMinutes = Number(value);
   }
+  const ports = template.ports.map((p) => {
+    const host = hostPort + p.offset;
+    return { containerPort: p.samePort ? host : p.container, hostPort: host, protocol: p.protocol };
+  });
+  // What Pterodactyl images (yolks) expect: STARTUP with {{VARIABLES}}, and where to listen (ADR 0022).
+  if (template.runtime.startup !== undefined) {
+    Object.assign(env, { STARTUP: template.runtime.startup, SERVER_IP: '0.0.0.0', SERVER_PORT: String(ports[0].containerPort), SERVER_MEMORY: String(memoryMb) });
+  }
+  const players = template.capabilities.players;
+  const queryPort = players && (players.port ? ports[template.ports.findIndex((p) => p.name === players.port)] : ports[0]).hostPort;
   const { sleep } = template.capabilities;
-  // ponytail: only Minecraft queries reach the agent until it speaks A2S (ADR 0022)
-  const players = template.capabilities.players?.protocol === 'minecraft' ? { protocol: 'minecraft' as const } : undefined;
+  const script = template.install.method === 'script' ? template.install : undefined;
   return {
     image,
     env,
-    // M1: one port per server. Templates with several ports get consecutive host ports later.
-    ports: [{ containerPort: template.ports[0].container, hostPort, protocol: template.ports[0].protocol }],
+    ports,
     memoryMb,
     readyPattern: template.lifecycle.ready ?? null,
     stopTimeoutSecs: template.lifecycle.stopTimeoutSecs,
-    // ponytail: the query answers on the game port; templates with a separate query port name it later
-    query: players ? { protocol: players.protocol, port: hostPort } : null,
+    query: players && queryPort ? { protocol: players.protocol, port: queryPort } : null,
     // Only a server whose players can be counted can tell that nobody is online.
     sleep:
       players && sleepMinutes > 0
@@ -350,5 +396,9 @@ export function buildSpec(template: Template, settings: Settings, hostPort: numb
             wake: sleep ? { protocol: sleep.wake, port: hostPort, statusText: WAKE_TEXTS.status, joinText: WAKE_TEXTS.join } : null,
           }
         : null,
+    mountPath: template.runtime.mountPath ?? null,
+    install: install && script ? { image: script.image, entrypoint: script.entrypoint, script: script.script } : null,
+    // ponytail: a stop *command* is not in the agent protocol yet; such templates stop with SIGTERM
+    stopSignal: template.lifecycle.stop && 'signal' in template.lifecycle.stop ? template.lifecycle.stop.signal : null,
   };
 }
