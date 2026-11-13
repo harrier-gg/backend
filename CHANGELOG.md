@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.0](https://github.com/harrier-gg/backend/compare/v0.7.0...v0.8.0) (2026-11-13)
+
+
+### Features
+
+* delete servers ([#37](https://github.com/harrier-gg/backend/issues/37)) ([43ad39b](https://github.com/harrier-gg/backend/commit/43ad39b555e149fa32588e0d45ae44d17803e697))
+* Hangar as a plugin source for Paper ([#36](https://github.com/harrier-gg/backend/issues/36)) ([923f26d](https://github.com/harrier-gg/backend/commit/923f26d6ccb344c080c584d172c197ac44dbed4e))
+* integration settings with encrypted secrets ([#34](https://github.com/harrier-gg/backend/issues/34)) ([e7ab9d7](https://github.com/harrier-gg/backend/commit/e7ab9d7a53c6b61aaad2bdeac83ed9fdb60bd900))
+* remove an offline node together with its servers ([#38](https://github.com/harrier-gg/backend/issues/38)) ([47d22d9](https://github.com/harrier-gg/backend/commit/47d22d91d1c0bb3c07d188fdf97fddc2d5f48e14))
+* share the content players need as a Modrinth modpack ([#32](https://github.com/harrier-gg/backend/issues/32)) ([a5c0c3d](https://github.com/harrier-gg/backend/commit/a5c0c3d06d58ce3133e30409910b4498b2cf8c1d))
+
 ## [0.7.0](https://github.com/harrier-gg/backend/compare/v0.6.0...v0.7.0) (2026-11-12)
 
 
