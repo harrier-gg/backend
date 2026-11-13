@@ -168,6 +168,9 @@ test('boolean and secret fields', () => {
   const field = (f: object) => egg({ config: [{ key: 'x', label: { en: 'X' }, ...f }] });
   assert.throws(() => field({ type: 'boolean', default: 'true' }), /default does not fit/);
   assert.throws(() => field({ type: 'secret', default: 'ab', min: 5 }), /default does not fit/);
+  // Empty = generated per server, even when the pattern or min would reject it; not for plain text.
+  assert.doesNotThrow(() => field({ type: 'secret', default: '', min: 5, pattern: '^[a-z]+$' }));
+  assert.throws(() => field({ type: 'string', default: '', min: 5 }), /default does not fit/);
   assert.throws(() => field({ type: 'string', default: 'x', values: { on: '1', off: '0' } }), /only for boolean/);
   assert.throws(() => field({ type: 'boolean', default: true, values: { on: '1' } }), /incomplete/);
 });

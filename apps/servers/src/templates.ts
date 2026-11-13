@@ -18,7 +18,9 @@ const ConfigField = z
     // `modpack`: a Modrinth modpack the image installs; its game version picks the Java (ADR 0020).
     // `boolean`: true or false. `secret`: text like `string` (passwords, tokens).
     type: z.enum(['string', 'integer', 'version', 'modpack', 'boolean', 'secret']),
-    default: z.union([z.string(), z.number(), z.boolean()]),
+    default: z
+      .union([z.string(), z.number(), z.boolean()])
+      .describe('Must fit the field, except "" for a secret: the panel then generates a random value per server.'),
     // `integer`: the value's range; `string` and `secret`: its length.
     min: z.number().optional(),
     max: z.number().optional(),
@@ -30,7 +32,8 @@ const ConfigField = z
     // `boolean` only: what goes into `env` for true and false (default "true"/"false"; eggs use "1"/"0").
     values: z.object({ on: z.string(), off: z.string() }).optional(),
   })
-  .refine((f) => checkValue(f, f.default) === null, 'The default does not fit the field')
+  // An empty secret default means "generate one per server", so no template ships a shared password.
+  .refine((f) => (f.type === 'secret' && f.default === '') || checkValue(f, f.default) === null, 'The default does not fit the field')
   .refine((f) => !f.values || f.type === 'boolean', '`values` is only for boolean fields');
 
 /** A path inside the server's data directory: names separated by "/"; no name starts with "." (so no ".."). */

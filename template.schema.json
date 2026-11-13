@@ -300,6 +300,7 @@
             ]
           },
           "default": {
+            "description": "Must fit the field, except \"\" for a secret: the panel then generates a random value per server.",
             "type": [
               "string",
               "number",
