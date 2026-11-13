@@ -4,6 +4,7 @@ import {
   ContentInstallSchema,
   ContentRemoveSchema,
   ContentSearchSchema,
+  TemplateModpacksRequestSchema,
   ServerIdSchema,
   Subjects,
   type AgentsRequestReply,
@@ -84,6 +85,21 @@ export class ContentController {
       return { data: await source.provider.search(source.options, request.data.query, source.gameVersion) };
     } catch (error) {
       return fail(502, `${request.data.source} is not reachable right now (${(error as Error).message})`);
+    }
+  }
+
+  /** Modrinth modpacks for a template's `modpack` field (ADR 0020); packs only for players are left out. */
+  @MessagePattern(Subjects.templatesModpacks)
+  async modpacks(@Payload() payload: unknown): Promise<Reply<ContentProject[]>> {
+    const request = TemplateModpacksRequestSchema.safeParse(payload);
+    const template = request.success ? this.templates.get(request.data.template) : undefined;
+    if (!request.success || !template?.config.some((f) => f.type === 'modpack')) return fail(404, 'This template has no modpack field');
+    const { version, query } = request.data;
+    try {
+      const packs = await this.providers.modrinth.search({ provider: 'modrinth', type: 'modpack' }, query, version.toLowerCase() === 'latest' ? '' : version);
+      return { data: packs.filter((p) => p.side !== 'client') };
+    } catch (error) {
+      return fail(502, `Modrinth is not reachable right now (${(error as Error).message})`);
     }
   }
 

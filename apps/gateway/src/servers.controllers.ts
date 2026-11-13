@@ -18,6 +18,7 @@ import {
   type VersionList,
 } from '@harrier-gg/contracts';
 import type { PanelMessage } from '@harrier-gg/protocol';
+import { ContentProjectDto } from './content.controller';
 import { firstValueFrom, timeout } from 'rxjs';
 import { AgentHub } from './agents/agent-hub';
 import { Allow } from './auth/auth.guard';
@@ -177,6 +178,16 @@ export class TemplatesController {
   @ApiOkResponse({ type: VersionListDto })
   versions(@Query('template') template: string): Promise<VersionListDto> {
     return call(this.nats, Subjects.templatesVersions, { template });
+  }
+
+  /** Modrinth modpacks for a template's modpack field (ADR 0020), for the given game version. */
+  @Get('modpacks')
+  @ApiQuery({ name: 'template', example: 'minecraft-java/modrinth-modpack' })
+  @ApiQuery({ name: 'version', required: false, description: 'Game version; empty or LATEST: any' })
+  @ApiQuery({ name: 'query', required: false })
+  @ApiOkResponse({ type: [ContentProjectDto] })
+  modpacks(@Query('template') template: string, @Query('version') version = '', @Query('query') query = ''): Promise<ContentProjectDto[]> {
+    return call(this.nats, Subjects.templatesModpacks, { template, version, query }, 20_000);
   }
 }
 

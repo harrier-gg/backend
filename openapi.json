@@ -877,6 +877,53 @@
         ]
       }
     },
+    "/templates/modpacks": {
+      "get": {
+        "operationId": "templatesModpacks",
+        "parameters": [
+          {
+            "name": "template",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "minecraft-java/modrinth-modpack",
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "version",
+            "required": false,
+            "in": "query",
+            "description": "Game version; empty or LATEST: any",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContentProjectDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "templates"
+        ]
+      }
+    },
     "/nodes": {
       "get": {
         "operationId": "nodesList",
@@ -2537,6 +2584,53 @@
           "versions"
         ]
       },
+      "ContentProjectDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "downloads": {
+            "type": "number"
+          },
+          "iconUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageUrl": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "server",
+              "client",
+              "both"
+            ],
+            "description": "client: only players need it"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "summary",
+          "author",
+          "downloads",
+          "iconUrl",
+          "pageUrl",
+          "side"
+        ]
+      },
       "NodeDto": {
         "type": "object",
         "properties": {
@@ -2784,53 +2878,6 @@
           "side",
           "dependency",
           "installedAt"
-        ]
-      },
-      "ContentProjectDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          },
-          "author": {
-            "type": "string"
-          },
-          "downloads": {
-            "type": "number"
-          },
-          "iconUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "pageUrl": {
-            "type": "string"
-          },
-          "side": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "server",
-              "client",
-              "both"
-            ],
-            "description": "client: only players need it"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "summary",
-          "author",
-          "downloads",
-          "iconUrl",
-          "pageUrl",
-          "side"
         ]
       },
       "InstallDto": {
