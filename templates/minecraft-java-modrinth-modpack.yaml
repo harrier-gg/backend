@@ -1,0 +1,39 @@
+schemaVersion: 1
+id: minecraft-java/modrinth-modpack
+extends: minecraft-java
+variant:
+  id: modrinth-modpack
+  name: Modrinth modpack
+  description:
+    en: Any modpack from Modrinth (Fabric, Forge, NeoForge, Quilt). The server installs its loader and server mods itself.
+    de: Ein beliebiges Modpack von Modrinth (Fabric, Forge, NeoForge, Quilt). Der Server installiert Loader und Server-Mods selbst.
+# The image installs the pack, its loader, server mods and overrides, and swaps them when the
+# pack version changes (ADR 0020). https://docker-minecraft-server.readthedocs.io/en/latest/types-and-platforms/mod-platforms/modrinth-modpacks/
+runtime:
+  env:
+    TYPE: MODRINTH
+config:
+  - key: modpack
+    label: { en: "Modpack (name or link from modrinth.com)", de: "Modpack (Name oder Link von modrinth.com)" }
+    type: modpack
+    default: adrenaserver
+    env: MODRINTH_MODPACK
+  - key: version
+    label: { en: Minecraft version, de: Minecraft-Version }
+    type: version
+    default: LATEST
+    env: VERSION
+  - key: memory
+    label: { en: Memory (MB), de: Arbeitsspeicher (MB) }
+    type: integer
+    default: 4096
+    min: 2048
+    max: 32768
+    limit: memory
+  - key: sleepAfter
+    label: { en: "Sleep after (minutes without players, 0 = never)", de: "Schlafen nach (Minuten ohne Spieler, 0 = nie)" }
+    type: integer
+    default: 15
+    min: 0
+    max: 1440
+    limit: sleep

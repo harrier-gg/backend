@@ -15,7 +15,8 @@ const ConfigField = z
     key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/),
     label: Localized,
     // `version`: one of the versions of the template's version provider (ADR 0012).
-    type: z.enum(['string', 'integer', 'version']),
+    // `modpack`: a Modrinth modpack the image installs; its game version picks the Java (ADR 0020).
+    type: z.enum(['string', 'integer', 'version', 'modpack']),
     default: z.union([z.string(), z.number()]),
     min: z.number().optional(),
     max: z.number().optional(),
@@ -106,6 +107,12 @@ export type Template = z.infer<typeof Template>;
 export type Settings = Record<string, string | number>;
 type Field = Pick<TemplateConfigField, 'type' | 'min' | 'max' | 'pattern'>;
 
+/**
+ * A modpack as the image takes it: a Modrinth slug or ID, a link (project or version page, or a
+ * hosted .mrpack), or a .mrpack uploaded into the server's files (seen as /data in the container).
+ */
+const MODPACK = /^([A-Za-z0-9_.-]{1,64}|https:\/\/[^\s]{1,500}|\/data\/[A-Za-z0-9._\/-]{1,200}\.mrpack)$/;
+
 /** Returns why a value does not fit a field, or null if it does. Values are never converted. */
 function checkValue(field: Field, value: unknown): string | null {
   switch (field.type) {
@@ -117,6 +124,9 @@ function checkValue(field: Field, value: unknown): string | null {
     case 'version':
       // Whether the version exists is checked against the provider's list, which needs the network.
       return typeof value === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(value) ? null : 'is not a version name';
+    case 'modpack':
+      // Whether the pack exists is checked on Modrinth, which needs the network.
+      return typeof value === 'string' && MODPACK.test(value) ? null : 'is not a Modrinth modpack name or link';
     case 'string':
       if (typeof value !== 'string') return 'must be text';
       return field.pattern && !new RegExp(field.pattern).test(value) ? 'has an invalid value' : null;

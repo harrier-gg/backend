@@ -33,7 +33,8 @@ class LocalizedTextDto {
 class TemplateConfigFieldDto implements TemplateConfigField {
   @ApiProperty() key!: string;
   @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
-  @ApiProperty({ enum: ['string', 'integer', 'version'], description: 'version: pick from GET /templates/versions' }) type!: 'string' | 'integer' | 'version';
+  @ApiProperty({ enum: ['string', 'integer', 'version', 'modpack'], description: 'version: pick from GET /templates/versions; modpack: a Modrinth modpack, its name or link' })
+  type!: 'string' | 'integer' | 'version' | 'modpack';
   @ApiProperty({ oneOf: [{ type: 'string' }, { type: 'number' }] }) default!: string | number;
   @ApiPropertyOptional() min?: number;
   @ApiPropertyOptional() max?: number;

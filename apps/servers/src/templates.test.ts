@@ -7,7 +7,7 @@ const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../../../template
 
 test('the official templates load; abstract bases are not offered', () => {
   const ids = catalog.list().map((t) => t.id).sort();
-  assert.deepEqual(ids, ['minecraft-java/fabric', 'minecraft-java/paper', 'minecraft-java/vanilla']);
+  assert.deepEqual(ids, ['minecraft-java/fabric', 'minecraft-java/modrinth-modpack', 'minecraft-java/paper', 'minecraft-java/vanilla']);
 });
 
 test('variants inherit from their base and override only what differs', () => {

@@ -128,8 +128,11 @@ export interface LocalizedText {
 export interface TemplateConfigField {
   key: string;
   label: LocalizedText;
-  /** `version`: pick from `GET /templates/versions` (ADR 0012). */
-  type: 'string' | 'integer' | 'version';
+  /**
+   * `version`: pick from `GET /templates/versions` (ADR 0012). `modpack`: a Modrinth modpack as
+   * its name or link from modrinth.com; the image installs it (ADR 0020).
+   */
+  type: 'string' | 'integer' | 'version' | 'modpack';
   default: string | number;
   min?: number;
   max?: number;
