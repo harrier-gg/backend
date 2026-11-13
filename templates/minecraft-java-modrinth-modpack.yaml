@@ -19,7 +19,7 @@ config:
     default: adrenaserver
     env: MODRINTH_MODPACK
   - key: version
-    label: { en: "Minecraft version (LATEST: the pack's newest version)", de: "Minecraft-Version (LATEST: neueste Version des Packs)" }
+    label: { en: Minecraft version, de: Minecraft-Version }
     type: version
     default: LATEST
     env: VERSION
