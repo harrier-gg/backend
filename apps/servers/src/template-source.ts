@@ -21,8 +21,15 @@ async function fetchIndex(url: string): Promise<unknown> {
   return JSON.parse(text);
 }
 
+/** The URL without credentials or query, for logs (a private mirror may take a token). */
+function forLog(url: string): string {
+  const u = new URL(url);
+  return `${u.protocol}//${u.host}${u.pathname}`;
+}
+
 export async function loadTemplates(db: Db, url: string): Promise<TemplateCatalog> {
   const log = new Logger('Templates');
+  const where = forLog(url);
   const catalog = new TemplateCatalog();
   const skip = (id: string, reason: string) => log.warn(`Template ${id} skipped: ${reason}`);
   // A broken or empty index never replaces working templates.
@@ -35,17 +42,17 @@ export async function loadTemplates(db: Db, url: string): Promise<TemplateCatalo
     const index = await fetchIndex(url);
     apply(index);
     await db.templateCache.upsert({ where: { id: 1 }, create: { id: 1, index: index as object }, update: { index: index as object, fetchedAt: new Date() } });
-    log.log(`${catalog.size} templates from ${url}`);
+    log.log(`${catalog.size} templates from ${where}`);
   };
 
   try {
     await refresh();
   } catch (e) {
     const cached = await db.templateCache.findUnique({ where: { id: 1 } });
-    if (!cached) log.error(`No templates: ${url} failed (${(e as Error).message}) and nothing is cached yet; retrying hourly`);
+    if (!cached) log.error(`No templates: ${where} failed (${(e as Error).message}) and nothing is cached yet; retrying hourly`);
     else {
       apply(cached.index);
-      log.warn(`${url} failed (${(e as Error).message}); using the copy from ${cached.fetchedAt.toISOString()}`);
+      log.warn(`${where} failed (${(e as Error).message}); using the copy from ${cached.fetchedAt.toISOString()}`);
     }
   }
   setInterval(() => refresh().catch((e) => log.warn(`Refreshing templates failed: ${(e as Error).message}`)), REFRESH_MS).unref();
