@@ -30,6 +30,7 @@ function forLog(url: string): string {
 export async function loadTemplates(db: Db, url: string): Promise<TemplateCatalog> {
   const log = new Logger('Templates');
   const where = forLog(url);
+  const why = (e: unknown) => String((e as Error).message).split(url).join(where);
   const catalog = new TemplateCatalog();
   const skip = (id: string, reason: string) => log.warn(`Template ${id} skipped: ${reason}`);
   // A broken or empty index never replaces working templates.
@@ -49,12 +50,12 @@ export async function loadTemplates(db: Db, url: string): Promise<TemplateCatalo
     await refresh();
   } catch (e) {
     const cached = await db.templateCache.findUnique({ where: { id: 1 } });
-    if (!cached) log.error(`No templates: ${where} failed (${(e as Error).message}) and nothing is cached yet; retrying hourly`);
+    if (!cached) log.error(`No templates: ${where} failed (${why(e)}) and nothing is cached yet; retrying hourly`);
     else {
       apply(cached.index);
-      log.warn(`${where} failed (${(e as Error).message}); using the copy from ${cached.fetchedAt.toISOString()}`);
+      log.warn(`${where} failed (${why(e)}); using the copy from ${cached.fetchedAt.toISOString()}`);
     }
   }
-  setInterval(() => refresh().catch((e) => log.warn(`Refreshing templates failed: ${(e as Error).message}`)), REFRESH_MS).unref();
+  setInterval(() => refresh().catch((e) => log.warn(`Refreshing templates failed: ${why(e)}`)), REFRESH_MS).unref();
   return catalog;
 }
