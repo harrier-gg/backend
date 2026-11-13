@@ -11,6 +11,7 @@ export const Subjects = {
   nodesRemove: 'nodes.remove',
   templatesList: 'templates.list',
   templatesVersions: 'templates.versions',
+  templatesModpacks: 'templates.modpacks',
   serversList: 'servers.list',
   serversGet: 'servers.get',
   serversCreate: 'servers.create',
@@ -150,6 +151,11 @@ export interface VersionList {
   versions: GameVersion[];
 }
 export const TemplateVersionsRequestSchema = z.object({ template: z.string().min(1).max(100) });
+/** Modpacks for a template's `modpack` field (ADR 0020); `version` narrows them to a game version. */
+export const TemplateModpacksRequestSchema = TemplateVersionsRequestSchema.extend({
+  version: z.string().max(64).default(''),
+  query: z.string().max(100).default(''),
+});
 
 export interface TemplateSummary {
   id: string;

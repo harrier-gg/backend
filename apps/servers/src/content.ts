@@ -77,9 +77,9 @@ const ModrinthOptions = z.object({
   provider: z.literal('modrinth'),
   /** Modrinth's project type: mod, plugin, datapack, resourcepack, … */
   type: z.string().regex(/^[a-z]+$/),
-  /** Loader or platform as Modrinth calls it: fabric, paper, … */
-  loader: z.string().regex(/^[a-z]+$/),
-});
+  /** Loader or platform as Modrinth calls it: fabric, paper, …; none for modpacks, which bring their own. */
+  loader: z.string().regex(/^[a-z]+$/).optional(),
+}).refine((o) => o.loader || o.type === 'modpack', 'Modrinth sources need a loader');
 type ModrinthOptions = z.infer<typeof ModrinthOptions>;
 
 interface ModrinthHit {
@@ -133,23 +133,24 @@ function toVersion(version: ModrinthVersion): ContentVersion {
 
 export function modrinth(fetch: FetchJson = fetchJson): ContentProvider {
   const get = (path: string, params: Record<string, string>) => fetch(`${MODRINTH}${path}?${new URLSearchParams(params)}`);
-  const project = (hit: ModrinthHit): ContentProject => ({
+  const project = (type: string) => (hit: ModrinthHit): ContentProject => ({
     id: hit.project_id,
     name: hit.title,
     summary: hit.description,
     author: hit.author,
     downloads: hit.downloads,
     iconUrl: hit.icon_url,
-    pageUrl: `https://modrinth.com/project/${hit.slug}`,
+    // The type's own path (/mod/…, /modpack/…), which the Minecraft image also takes for modpacks.
+    pageUrl: `https://modrinth.com/${type}/${hit.slug}`,
     side: sideOf(hit.client_side, hit.server_side),
   });
   return {
     parse: (options) => ModrinthOptions.parse(options),
     async search(options, query, gameVersion) {
       const o = options as ModrinthOptions;
-      const facets = [[`project_type:${o.type}`], [`categories:${o.loader}`], ...(gameVersion ? [[`versions:${gameVersion}`]] : [])];
+      const facets = [[`project_type:${o.type}`], ...(o.loader ? [[`categories:${o.loader}`]] : []), ...(gameVersion ? [[`versions:${gameVersion}`]] : [])];
       const result = (await get('/search', { query, facets: JSON.stringify(facets), limit: '20' })) as { hits: ModrinthHit[] };
-      return result.hits.map(project);
+      return result.hits.map(project(o.type));
     },
     async latest(options, projectId, gameVersion) {
       const o = options as ModrinthOptions;
@@ -178,8 +179,8 @@ export function modrinth(fetch: FetchJson = fetchJson): ContentProvider {
       return updates;
     },
     async project(projectId) {
-      const p = (await fetch(`${MODRINTH}/project/${encodeURIComponent(projectId)}`)) as ModrinthHit & { id: string; client_side: string; server_side: string };
-      return project({ ...p, project_id: p.id, author: '', downloads: p.downloads });
+      const p = (await fetch(`${MODRINTH}/project/${encodeURIComponent(projectId)}`)) as ModrinthHit & { id: string; project_type: string };
+      return project(p.project_type)({ ...p, project_id: p.id, author: '', downloads: p.downloads });
     },
   };
 }

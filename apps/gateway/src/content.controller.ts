@@ -8,7 +8,7 @@ import { call } from './servers.controllers';
 
 const SIDES = ['server', 'client', 'both'];
 
-class ContentProjectDto implements ContentProject {
+export class ContentProjectDto implements ContentProject {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
   @ApiProperty() summary!: string;

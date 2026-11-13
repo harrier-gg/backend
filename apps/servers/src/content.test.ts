@@ -47,6 +47,13 @@ test('the Modrinth adapter filters by type, loader and version and picks the pri
   const [sodium] = await provider.search(options, 'sodium', '26.3');
   assert.equal(sodium.side, 'client', 'the server does not support it: only players need it');
   assert.match(asked[0], /"project_type:mod"\],\["categories:fabric"\],\["versions:26.3"\]/);
+  assert.equal(sodium.pageUrl, 'https://modrinth.com/mod/sodium');
+
+  // Modpacks bring their own loader (ADR 0020): no loader facet, and a link the image takes.
+  const [pack] = await provider.search(provider.parse({ provider: 'modrinth', type: 'modpack' }), 'pack', '');
+  assert.equal(pack.pageUrl, 'https://modrinth.com/modpack/sodium');
+  assert.match(asked.at(-1)!, /facets=\[\["project_type:modpack"\]\]&/);
+  asked.length = 1;
 
   const version = await provider.latest(options, 'P7dR8mSH', '26.3');
   assert.deepEqual(version, {
