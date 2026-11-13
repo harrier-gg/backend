@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { buildSpec, knownSettings, TemplateCatalog, templateFileSchema, validateSettings } from './templates';
 
-const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../../../templates'));
+const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates'));
 
 test('the official templates load; abstract bases are not offered', () => {
   const ids = catalog.list().map((t) => t.id).sort();
@@ -185,4 +185,31 @@ test('template.schema.json is current (otherwise run `just schema`)', () => {
   assert.deepEqual(templateFileSchema(), committed);
   // It describes files as written: abstract bases and variants with `extends` need only these.
   assert.deepEqual((committed as { required: string[] }).required, ['schemaVersion', 'id']);
+});
+
+test('an index skips templates for newer panels and invalid ones, keeping the rest', () => {
+  const skipped: string[] = [];
+  const skip = (id: string) => skipped.push(id);
+  const base = { schemaVersion: 1, id: 'g/v', game: { id: 'g', name: 'G' }, variant: { id: 'v', name: 'V' }, install: { method: 'image' } };
+  const files = TemplateCatalog.parseIndex(
+    {
+      templates: [
+        { ...base, runtime: { image: 'img' }, ports: [{ name: 'game', container: 1, protocol: 'tcp' }], config: [], lifecycle: {}, capabilities: {} },
+        { ...base, id: 'g/new', schemaVersion: 2, somethingNew: true },
+        { ...base, id: 'g/bad', ports: 'nope' },
+        { ...base, id: 'g/incomplete' },
+      ],
+    },
+    skip,
+  );
+  const next = new TemplateCatalog(files, skip);
+  assert.deepEqual(next.list().map((t) => t.id), ['g/v']);
+  assert.deepEqual(skipped, ['g/new', 'g/bad', 'g/incomplete']);
+  assert.throws(() => TemplateCatalog.parseIndex({ nope: [] }, skip));
+});
+
+test('loading never swaps in a catalog without templates', () => {
+  const next = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates'));
+  assert.throws(() => next.load([{ schemaVersion: 1, id: 'x/y', abstract: false }], () => {}), /No usable templates/);
+  assert.equal(next.size, 4);
 });

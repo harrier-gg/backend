@@ -1,4 +1,4 @@
-// Templates (ADR 0005): load YAML files, resolve `extends`, validate settings and build the
+// Templates (ADR 0005, 0021): load them, resolve `extends`, validate settings and build the
 // game-neutral runtime spec the agent executes. Everything game-specific stays here.
 import type { SettingValue, TemplateConfigField, TemplateSummary } from '@harrier-gg/contracts';
 import type { RuntimeSpec } from '@harrier-gg/protocol';
@@ -209,10 +209,18 @@ function merge(base: TemplateFile, variant: TemplateFile): TemplateFile {
   };
 }
 
-export class TemplateCatalog {
-  private readonly templates = new Map<string, Template>();
+/** Reports a template left out, with the reason; without it, the first bad template throws. */
+type Skip = (id: string, reason: string) => void;
 
-  constructor(files: TemplateFile[]) {
+export class TemplateCatalog {
+  private templates = new Map<string, Template>();
+
+  constructor(files: TemplateFile[] = [], skip?: Skip) {
+    this.load(files, skip);
+  }
+
+  /** Replaces all templates at once, so requests never see half a catalog; never with none of them. */
+  load(files: TemplateFile[], skip?: Skip): void {
     const byId = new Map(files.map((f) => [f.id, f]));
     const resolve = (file: TemplateFile, seen: string[] = []): TemplateFile => {
       if (!file.extends) return file;
@@ -221,13 +229,35 @@ export class TemplateCatalog {
       if (!base) throw new Error(`Template ${file.id}: base "${file.extends}" not found`);
       return merge(resolve(base, [...seen, file.id]), file);
     };
+    const next = new Map<string, Template>();
     for (const file of files) {
-      const resolved = resolve(file);
-      if (resolved.abstract) continue;
-      const result = Template.safeParse(resolved);
-      if (!result.success) throw new Error(`Template ${file.id} is incomplete:\n${z.prettifyError(result.error)}`);
-      this.templates.set(file.id, result.data);
+      try {
+        const resolved = resolve(file);
+        if (resolved.abstract) continue;
+        const result = Template.safeParse(resolved);
+        if (!result.success) throw new Error(`Template ${file.id} is incomplete:\n${z.prettifyError(result.error)}`);
+        next.set(file.id, result.data);
+      } catch (e) {
+        if (!skip) throw e;
+        skip(file.id, (e as Error).message);
+      }
     }
+    if (files.length && !next.size) throw new Error('No usable templates');
+    this.templates = next;
+  }
+
+  /**
+   * Template files from an index of the templates repository (ADR 0021). Entries with an unknown
+   * `schemaVersion` (written for a newer panel) or that do not validate are skipped.
+   */
+  static parseIndex(index: unknown, skip: Skip): TemplateFile[] {
+    const entries = z.object({ templates: z.array(z.looseObject({ id: z.unknown(), schemaVersion: z.unknown() })) }).parse(index).templates;
+    return entries.flatMap((entry) => {
+      const id = String(entry.id);
+      if (entry.schemaVersion !== 1) return skip(id, `unknown schemaVersion ${String(entry.schemaVersion)}`), [];
+      const result = TemplateFile.safeParse(entry);
+      return result.success ? [result.data] : (skip(id, z.prettifyError(result.error)), []);
+    });
   }
 
   static fromDirectory(dir: string): TemplateCatalog {
@@ -239,6 +269,10 @@ export class TemplateCatalog {
         return result.data;
       });
     return new TemplateCatalog(files);
+  }
+
+  get size(): number {
+    return this.templates.size;
   }
 
   get(id: string): Template | undefined {

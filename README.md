@@ -29,7 +29,7 @@ just node-create my-pc                       # prints the agent token once
 HARRIER_AGENT_TOKEN=hrr_… just dev           # in ../agent
 ```
 
-Templates for games live in `templates/` (one YAML file per variant, shared parts in an abstract base, see [ADR 0005](https://github.com/harrier-gg/.github/blob/main/adr/0005-games-variants-and-providers.md)). The servers service turns a template and the user's settings into a game-neutral runtime spec for the agent.
+Templates for games live in [harrier-gg/templates](https://github.com/harrier-gg/templates) ([ADR 0021](https://github.com/harrier-gg/.github/blob/main/adr/0021-template-repository.md)). The servers service loads its `index.json` from `HARRIER_TEMPLATES_URL` at start and every hour and keeps the last good copy in the database; for working on templates, point it at a local checkout with `HARRIER_TEMPLATES_URL=file:///path/to/templates/index.json`. It turns a template and the user's settings into a game-neutral runtime spec for the agent. `template.schema.json` describes the template format (`just schema`); the templates repository validates against it.
 
 - Health: http://localhost:8080/api/v1/health
 - API docs: http://localhost:8080/api/docs
