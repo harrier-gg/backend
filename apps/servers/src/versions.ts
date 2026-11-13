@@ -10,6 +10,9 @@ const LIST_TTL_MS = 60 * 60 * 1000;
 const MOJANG_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 const PAPER_PROJECT = 'https://fill.papermc.io/v3/projects/paper';
 const FABRIC_GAME = 'https://meta.fabricmc.net/v2/versions/game';
+const MODRINTH = 'https://api.modrinth.com/v2';
+/** A modpack slug or ID, or its project or version page on modrinth.com. */
+const MODRINTH_PACK = /^(?:https:\/\/modrinth\.com\/modpack\/)?([A-Za-z0-9_.-]+)(?:\/version\/([A-Za-z0-9_.+-]+))?\/?$/;
 
 /** GET, or POST with a JSON body. */
 export type FetchJson = (url: string, body?: unknown) => Promise<unknown>;
@@ -74,6 +77,30 @@ export class VersionProviders {
     }
   }
 
+  /**
+   * The Minecraft version of the modpack version the image will install: the newest release for
+   * `game` (null: any). `missing` if Modrinth has no such modpack or version; null if unknown
+   * (offline, or a link to a file).
+   */
+  async modpackGameVersion(pack: string, game: string | null): Promise<{ game: string } | 'missing' | null> {
+    const ref = MODRINTH_PACK.exec(pack);
+    if (!ref) return null;
+    const [, slug, pinned] = ref;
+    try {
+      const project = (await this.fetch(`${MODRINTH}/project/${slug}`)) as { project_type: string };
+      if (project.project_type !== 'modpack') return 'missing';
+      type Version = { version_type: string; game_versions: string[] };
+      const versions = pinned
+        ? [(await this.fetch(`${MODRINTH}/project/${slug}/version/${pinned}`)) as Version]
+        : ((await this.fetch(`${MODRINTH}/project/${slug}/version${game ? `?game_versions=${encodeURIComponent(JSON.stringify([game]))}` : ''}`)) as Version[]);
+      const version = versions.find((v) => v.version_type === 'release') ?? versions[0];
+      // ponytail: a pack names one game version in practice; the last is the newest if it names more
+      return version?.game_versions.length ? { game: version.game_versions.at(-1)! } : 'missing';
+    } catch (error) {
+      return String(error).includes('HTTP 404') ? 'missing' : null;
+    }
+  }
+
   private async load(provider: Provider): Promise<VersionList> {
     switch (provider) {
       case 'mojang': {
@@ -123,9 +150,18 @@ export async function gameVersionOf(providers: VersionProviders, template: Templ
   return String(resolved.settings[field.key] ?? '');
 }
 
-/** Rejects versions the provider does not know. Without a list (offline) the name check is all. */
+/**
+ * Rejects versions the provider does not know, and modpacks Modrinth does not have for that
+ * version. Offline (no list, no answer) the name checks are all.
+ */
 export async function checkVersion(providers: VersionProviders, template: Template, settings: Settings): Promise<string | null> {
   const field = template.config.find((f) => f.type === 'version');
+  const pack = template.config.find((f) => f.type === 'modpack');
+  if (pack) {
+    const version = field ? String(settings[field.key]) : 'latest';
+    const found = await providers.modpackGameVersion(String(settings[pack.key]), isLatest(version) ? null : version);
+    if (found === 'missing') return `Modrinth has no modpack "${settings[pack.key]}"${isLatest(version) ? '' : ` for Minecraft ${version}`}`;
+  }
   if (!field || !template.versions) return null;
   const version = String(settings[field.key]);
   if (isLatest(version)) return null;
@@ -142,6 +178,13 @@ export async function resolveVersion(providers: VersionProviders, template: Temp
   const field = template.config.find((f) => f.type === 'version');
   if (!field || !template.versions) return { settings, image: template.runtime.image };
   let version = String(settings[field.key]);
+  const pack = template.config.find((f) => f.type === 'modpack');
+  if (pack) {
+    // The image picks the pack version itself, so "latest" stays; the pack's game version picks the Java.
+    const found = await providers.modpackGameVersion(String(settings[pack.key]), isLatest(version) ? null : version);
+    const java = found && found !== 'missing' && template.runtime.java ? await providers.javaFor(found.game) : null;
+    return { settings, image: (java !== null && template.runtime.java && imageForJava(template.runtime.java, java)) || template.runtime.image };
+  }
   if (isLatest(version)) version = (await providers.list(template.versions.provider))?.latest ?? version;
   const java = template.runtime.java && !isLatest(version) ? await providers.javaFor(version) : null;
   const image = (java !== null && template.runtime.java && imageForJava(template.runtime.java, java)) || template.runtime.image;

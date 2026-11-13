@@ -2412,9 +2412,10 @@
             "enum": [
               "string",
               "integer",
-              "version"
+              "version",
+              "modpack"
             ],
-            "description": "version: pick from GET /templates/versions"
+            "description": "version: pick from GET /templates/versions; modpack: a Modrinth modpack, its name or link"
           },
           "default": {
             "oneOf": [

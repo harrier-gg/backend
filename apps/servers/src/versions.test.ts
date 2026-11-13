@@ -114,3 +114,34 @@ test('only versions the provider knows can be chosen; offline any version name',
   });
   assert.equal(await checkVersion(offline, fabric, { version: '1.16.5' }), null);
 });
+
+test('a modpack keeps "latest" for the image and picks the Java of its game version', async () => {
+  const modpack = catalog.get('minecraft-java/modrinth-modpack')!;
+  const M = 'https://api.modrinth.com/v2/project';
+  const sources = fakeSources();
+  const answers: Record<string, unknown> = {
+    [`${M}/old-pack`]: { project_type: 'modpack' },
+    [`${M}/old-pack/version`]: [
+      { version_type: 'beta', game_versions: ['26.3'] },
+      { version_type: 'release', game_versions: ['1.16.5'] },
+    ],
+    [`${M}/old-pack/version/2.0`]: { version_type: 'release', game_versions: ['26.3'] },
+    [`${M}/old-pack/version?game_versions=${encodeURIComponent('["26.3"]')}`]: [],
+    [`${M}/sodium`]: { project_type: 'mod' },
+  };
+  const providers = new VersionProviders(async (url) => {
+    if (url in answers) return answers[url];
+    if (url.startsWith(M)) throw new Error(`${url}: HTTP 404`);
+    return sources.fetch(url);
+  });
+  const settings = { modpack: 'https://modrinth.com/modpack/old-pack', version: 'LATEST', memory: 4096, sleepAfter: 15 };
+
+  assert.deepEqual(await resolveVersion(providers, modpack, settings), { settings, image: 'itzg/minecraft-server:java8' }, 'the newest release, not the beta');
+  assert.equal((await resolveVersion(providers, modpack, { ...settings, modpack: 'old-pack/version/2.0' })).image, 'itzg/minecraft-server:java25');
+  assert.equal((await resolveVersion(providers, modpack, { ...settings, modpack: '/data/pack.mrpack' })).image, 'itzg/minecraft-server:java25', 'a file: the default');
+
+  assert.equal(await checkVersion(providers, modpack, settings), null);
+  assert.match((await checkVersion(providers, modpack, { ...settings, version: '26.3' })) ?? '', /no modpack "https:\/\/modrinth.com\/modpack\/old-pack" for Minecraft 26.3/);
+  assert.match((await checkVersion(providers, modpack, { ...settings, modpack: 'sodium' })) ?? '', /no modpack "sodium"/);
+  assert.match((await checkVersion(providers, modpack, { ...settings, modpack: 'nope' })) ?? '', /no modpack "nope"/);
+});
