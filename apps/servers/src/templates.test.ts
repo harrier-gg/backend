@@ -240,7 +240,7 @@ test('a new server gets the first block of free ports', () => {
 test('secrets are emptied for users who may not manage servers', () => {
   const t = egg({ config: [{ key: 'password', label: { en: 'P' }, type: 'secret', default: '' }, { key: 'name', label: { en: 'N' }, type: 'string', default: 'x' }] });
   assert.deepEqual(maskSecrets(t, { password: 'hunter22', name: 'My server' }), { password: '', name: 'My server' });
-  assert.deepEqual(maskSecrets(undefined, { a: 1 }), { a: 1 });
+  assert.deepEqual(maskSecrets(undefined, { password: 'hunter22' }), {}, 'unknown template: nothing shown');
 });
 
 test('template.schema.json is current (otherwise run `just schema`)', () => {

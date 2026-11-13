@@ -323,9 +323,12 @@ function randomSecret(field: Field): string {
   return Array.from({ length }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
 }
 
-/** Settings with secret values emptied, for users who may not manage the server. */
+/**
+ * Settings with secret values emptied, for users who may not manage the server. Without the
+ * template (gone from the index) it is unknown which are secret, so none are shown.
+ */
 export function maskSecrets(template: Template | undefined, settings: Settings): Settings {
-  if (!template) return settings;
+  if (!template) return {};
   return Object.fromEntries(Object.entries(settings).map(([k, v]) => [k, template.config.some((f) => f.key === k && f.type === 'secret') ? '' : v]));
 }
 
