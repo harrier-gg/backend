@@ -3,7 +3,7 @@ import { ClientProxy, EventPattern, MessagePattern, Payload } from '@nestjs/micr
 import {
   AgentsEventSchema,
   CreateNodeSchema,
-  NodeIdSchema,
+  RemoveNodeSchema,
   type NodeCreated,
   CreateServerRequestSchema,
   MetricsRecordSchema,
@@ -114,16 +114,26 @@ export class ServersController {
     }
   }
 
-  /** Removing a node revokes its token. Its servers must be removed first. */
+  /**
+   * Removing a node revokes its token. Its servers must be deleted first, unless `force` is set:
+   * then they are only forgotten, for a machine that is gone for good (the gateway allows that
+   * only while the node is offline). Their files stay on the machine.
+   */
   @MessagePattern(Subjects.nodesRemove)
   async removeNode(@Payload() payload: unknown): Promise<Reply<{ ok: true }>> {
-    const request = NodeIdSchema.safeParse(payload);
+    const request = RemoveNodeSchema.safeParse(payload);
     if (!request.success) return fail(400, 'Invalid node');
-    if ((await this.db.server.count({ where: { nodeId: request.data.id } })) > 0) {
+    const { id, force } = request.data;
+    if (!force && (await this.db.server.count({ where: { nodeId: id } })) > 0) {
       return fail(409, 'The node still has servers. Remove them first.');
     }
-    const deleted = await this.db.node.deleteMany({ where: { id: request.data.id } });
-    return deleted.count ? { data: { ok: true } } : fail(404, 'Node not found');
+    const [servers, deleted] = await this.db.$transaction([
+      this.db.server.deleteMany({ where: { nodeId: id } }),
+      this.db.node.deleteMany({ where: { id } }),
+    ]);
+    if (!deleted.count) return fail(404, 'Node not found');
+    if (servers.count) this.logger.log(`Removed node ${id} and forgot its ${servers.count} server(s)`);
+    return { data: { ok: true } };
   }
 
   @MessagePattern(Subjects.serversList)

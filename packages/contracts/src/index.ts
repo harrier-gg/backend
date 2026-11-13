@@ -110,6 +110,8 @@ export interface NodeSummary {
 export const NodeNameSchema = z.string().regex(/^[A-Za-z0-9._-]{1,64}$/);
 export const CreateNodeSchema = z.object({ name: NodeNameSchema });
 export const NodeIdSchema = z.object({ id: z.string().uuid() });
+/** `force` also removes the node's servers from the panel; their files stay on the machine. */
+export const RemoveNodeSchema = NodeIdSchema.extend({ force: z.boolean().optional() });
 
 /** Returned once when a node is registered: the agent token is never shown again (ADR 0004). */
 export interface NodeCreated {
