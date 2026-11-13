@@ -209,11 +209,8 @@ export class ServersController {
     if (!server) return fail(404, 'Server not found');
     const template = this.templates.get(server.templateId);
     if (!template) return fail(409, `The template "${server.templateId}" no longer exists`);
-    // An empty secret keeps the stored one: the form shows secrets empty to keep them out of sight.
-    const changes = Object.fromEntries(
-      Object.entries(request.data.settings).filter(([k, v]) => v !== '' || !template.config.some((f) => f.key === k && f.type === 'secret')),
-    );
-    const validated = validateSettings(template, { ...knownSettings(template, server.settings as Settings), ...changes });
+    // An empty secret gets a new random value, like on create.
+    const validated = validateSettings(template, { ...knownSettings(template, server.settings as Settings), ...request.data.settings });
     if ('error' in validated) return fail(400, validated.error);
     const unknownVersion = await checkVersion(this.versions, template, validated.settings);
     if (unknownVersion) return fail(400, unknownVersion);
