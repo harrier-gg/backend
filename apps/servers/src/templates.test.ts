@@ -170,6 +170,11 @@ test('boolean and secret fields', () => {
   assert.throws(() => field({ type: 'secret', default: 'ab', min: 5 }), /default does not fit/);
   // Empty = generated per server, even when the pattern or min would reject it; not for plain text.
   assert.doesNotThrow(() => field({ type: 'secret', default: '', min: 5, pattern: '^[a-z]+$' }));
+  // Until that generation exists, a server never gets an empty secret.
+  const generated = field({ type: 'secret', default: '' });
+  assert.ok('error' in validateSettings(generated, {}));
+  assert.ok('error' in validateSettings(generated, { x: '' }));
+  assert.ok('settings' in validateSettings(generated, { x: 'hunter22' }));
   assert.throws(() => field({ type: 'string', default: '', min: 5 }), /default does not fit/);
   assert.throws(() => field({ type: 'string', default: 'x', values: { on: '1', off: '0' } }), /only for boolean/);
   assert.throws(() => field({ type: 'boolean', default: true, values: { on: '1' } }), /incomplete/);

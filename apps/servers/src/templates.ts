@@ -183,6 +183,8 @@ function checkValue(field: Field, value: unknown): string | null {
     case 'string':
     case 'secret':
       if (typeof value !== 'string') return 'must be text';
+      // ponytail: an empty secret is refused until the panel generates one per server (ADR 0022)
+      if (field.type === 'secret' && value === '') return 'must not be empty';
       if (field.min !== undefined && value.length < field.min) return `must be at least ${field.min} characters`;
       if (field.max !== undefined && value.length > field.max) return `must be at most ${field.max} characters`;
       return field.pattern && !new RegExp(field.pattern).test(value) ? 'has an invalid value' : null;
