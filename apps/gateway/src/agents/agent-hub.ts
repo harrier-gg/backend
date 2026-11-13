@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnApplicationShutdown } from '@nestjs/commo
 import { ClientProxy } from '@nestjs/microservices';
 import { Subjects, type AgentsRequestReply, type AuthenticateNodeReply, type FileEntry } from '@harrier-gg/contracts';
 import type { AgentMessage, Hello, PanelMessage, Restart } from '@harrier-gg/protocol';
-import type { IncomingMessage } from 'node:http';
+import { STATUS_CODES, type IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
 import { ConsoleHub } from '../console-hub';
@@ -56,7 +56,7 @@ export class AgentHub implements OnApplicationShutdown {
       noServer: true, // upgrades are routed by WsRouter
       maxPayload: MAX_MESSAGE_BYTES,
       verifyClient: (info: { req: IncomingMessage }, done: (ok: boolean, code?: number, message?: string) => void) => {
-        void this.verify(info.req).then((ok) => (ok ? done(true) : done(false, 401, 'Unauthorized')));
+        void this.verify(info.req).then((status) => (status === 200 ? done(true) : done(false, status, STATUS_CODES[status])));
       },
     });
     this.wss.on('connection', (socket, req) => this.accept(socket, this.nodeOf.get(req)!));
@@ -110,14 +110,20 @@ export class AgentHub implements OnApplicationShutdown {
     this.wss.close();
   }
 
-  private async verify(req: IncomingMessage): Promise<boolean> {
-    if (this.wss.clients.size >= MAX_AGENTS) return false;
-    const node = await this.authenticate(req);
-    if (node) this.nodeOf.set(req, node);
-    return !!node;
+  /** The HTTP status for an agent's upgrade: the agent gives up on 401, and retries on anything else. */
+  private async verify(req: IncomingMessage): Promise<200 | 401 | 503> {
+    if (this.wss.clients.size >= MAX_AGENTS) return 503;
+    const node = await this.authenticate(req).catch(() => undefined);
+    if (node === undefined) return 503;
+    if (!node) return 401;
+    this.nodeOf.set(req, node);
+    return 200;
   }
 
-  /** The node whose agent token the request carries (ADR 0004); also used by transfer channels. */
+  /**
+   * The node whose agent token the request carries (ADR 0004); also used by transfer channels.
+   * Throws when the token can't be checked, so a panel restart doesn't look like a wrong token.
+   */
   async authenticate(req: IncomingMessage): Promise<Node | null> {
     // Browsers always send an Origin header, the agent never does. This way no foreign website
     // can pose as an agent through the user's browser (cross-site WebSocket hijacking).
@@ -132,7 +138,7 @@ export class AgentHub implements OnApplicationShutdown {
       return node ?? null;
     } catch (error) {
       this.logger.error(`Agent authentication failed: servers service unreachable (${String(error)})`);
-      return null;
+      throw error;
     }
   }
 

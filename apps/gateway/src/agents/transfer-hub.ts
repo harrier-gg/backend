@@ -44,7 +44,7 @@ export class TransferHub {
 
   /** Accepts an agent's transfer channel, if the ID is waiting for exactly this node. */
   async upgrade(req: IncomingMessage, socket: Duplex, head: Buffer, id: string) {
-    const node = await this.agents.authenticate(req);
+    const node = await this.agents.authenticate(req).catch(() => null);
     const waiting = this.waiting.get(id);
     if (!node || !waiting || waiting.nodeId !== node.id) return void socket.end('HTTP/1.1 401 Unauthorized\r\n\r\n');
     this.waiting.delete(id);
