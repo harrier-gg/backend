@@ -1,0 +1,502 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+(\\/[a-z0-9-]+)?$"
+    },
+    "abstract": {
+      "default": false,
+      "type": "boolean"
+    },
+    "extends": {
+      "type": "string"
+    },
+    "game": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "variant": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "object",
+          "properties": {
+            "en": {
+              "type": "string"
+            },
+            "de": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "en"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "install": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "image",
+                "download",
+                "steamcmd"
+              ]
+            }
+          },
+          "required": [
+            "method"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "const": "script"
+            },
+            "image": {
+              "type": "string"
+            },
+            "entrypoint": {
+              "type": "string"
+            },
+            "script": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "method",
+            "image",
+            "entrypoint",
+            "script"
+          ]
+        }
+      ]
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "java": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "startup": {
+          "type": "string"
+        },
+        "mountPath": {
+          "type": "string",
+          "pattern": "^(\\/(?!\\.\\.?(\\/|$))[A-Za-z0-9._-]+)+$"
+        }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "mojang",
+            "papermc",
+            "fabric"
+          ]
+        }
+      },
+      "required": [
+        "provider"
+      ]
+    },
+    "content": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z-]{0,39}$"
+          },
+          "label": {
+            "type": "object",
+            "properties": {
+              "en": {
+                "type": "string"
+              },
+              "de": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "en"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*(\\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$"
+          },
+          "sources": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z-]{0,39}$"
+                }
+              },
+              "required": [
+                "provider"
+              ],
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "path",
+          "sources"
+        ]
+      }
+    },
+    "share": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "mrpack"
+          ]
+        },
+        "loader": {
+          "type": "string",
+          "enum": [
+            "fabric-loader"
+          ]
+        }
+      },
+      "required": [
+        "format",
+        "loader"
+      ]
+    },
+    "ports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "container": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "tcp",
+              "udp"
+            ]
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "samePort": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "container",
+          "protocol"
+        ]
+      }
+    },
+    "config": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9]*$"
+          },
+          "label": {
+            "type": "object",
+            "properties": {
+              "en": {
+                "type": "string"
+              },
+              "de": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "en"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "integer",
+              "version",
+              "modpack",
+              "boolean",
+              "secret"
+            ]
+          },
+          "default": {
+            "description": "Must fit the field, except \"\" for a secret: the panel then generates a random value per server.",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "env": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "limit": {
+            "type": "string",
+            "enum": [
+              "memory",
+              "sleep"
+            ]
+          },
+          "values": {
+            "type": "object",
+            "properties": {
+              "on": {
+                "type": "string"
+              },
+              "off": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "on",
+              "off"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type",
+          "default"
+        ]
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "properties": {
+        "ready": {
+          "type": "string"
+        },
+        "stopTimeoutSecs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stop": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "signal": {
+                  "type": "string",
+                  "enum": [
+                    "SIGINT",
+                    "SIGTERM"
+                  ]
+                }
+              },
+              "required": [
+                "signal"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "command"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "players": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string",
+              "enum": [
+                "minecraft",
+                "a2s"
+              ]
+            },
+            "port": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "protocol"
+          ]
+        },
+        "sleep": {
+          "type": "object",
+          "properties": {
+            "wake": {
+              "type": "string",
+              "enum": [
+                "minecraft"
+              ]
+            }
+          },
+          "required": [
+            "wake"
+          ]
+        },
+        "backup": {
+          "type": "object",
+          "properties": {
+            "before": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ready": {
+              "type": "string"
+            },
+            "after": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "exclude": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\*?[A-Za-z0-9._-]+$"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": {}
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*(\\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$"
+          },
+          "description": {
+            "type": "object",
+            "properties": {
+              "en": {
+                "type": "string"
+              },
+              "de": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id"
+  ]
+}

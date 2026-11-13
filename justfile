@@ -38,6 +38,11 @@ api:
     npm run build
     npm run openapi
 
+# Regenerate template.schema.json (after every template format change; the file is committed)
+schema:
+    npm run build
+    npm run schema
+
 # Take over the protocol types from ../agent (after every protocol change; committed)
 protocol:
     cd ../agent && just protocol
@@ -56,3 +61,5 @@ check:
     npm run build
     npm run openapi
     git diff --exit-code openapi.json
+    npm run schema
+    git diff --exit-code template.schema.json

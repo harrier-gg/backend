@@ -126,15 +126,19 @@ export interface LocalizedText {
   de?: string;
 }
 
+/** A server setting's value; its template field says which kind. */
+export type SettingValue = string | number | boolean;
+
 export interface TemplateConfigField {
   key: string;
   label: LocalizedText;
   /**
    * `version`: pick from `GET /templates/versions` (ADR 0012). `modpack`: a Modrinth modpack as
-   * its name or link from modrinth.com; the image installs it (ADR 0020).
+   * its name or link from modrinth.com; the image installs it (ADR 0020). `boolean`: true or false.
+   * `secret`: text like `string` that is not shown in clear (passwords, tokens).
    */
-  type: 'string' | 'integer' | 'version' | 'modpack';
-  default: string | number;
+  type: 'string' | 'integer' | 'version' | 'modpack' | 'boolean' | 'secret';
+  default: SettingValue;
   min?: number;
   max?: number;
   pattern?: string;
@@ -179,7 +183,7 @@ export interface ServerSummary {
   name: string;
   nodeId: string;
   templateId: string;
-  settings: Record<string, string | number>;
+  settings: Record<string, SettingValue>;
   /** Address players connect to: the node's host plus this port. */
   hostPort: number;
   status: ServerStatus;
@@ -188,7 +192,7 @@ export interface ServerSummary {
 }
 
 /** Values for a template's config fields; the servers service checks them against the template. */
-const SettingsSchema = z.record(z.string(), z.union([z.string().max(1000), z.number()]));
+const SettingsSchema = z.record(z.string(), z.union([z.string().max(1000), z.number(), z.boolean()]));
 
 export const CreateServerRequestSchema = z.object({
   nodeId: z.string().uuid(),

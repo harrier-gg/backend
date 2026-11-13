@@ -20,3 +20,5 @@ jobs:
       - run: npm run build
       - name: openapi.json is up to date (otherwise run `just api` and commit)
         run: npm run openapi && git diff --exit-code openapi.json
+      - name: template.schema.json is up to date (otherwise run `just schema` and commit)
+        run: npm run schema && git diff --exit-code template.schema.json

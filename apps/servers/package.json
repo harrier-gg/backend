@@ -13,7 +13,8 @@
     "test": "tsx --test 'src/**/*.test.ts'",
     "migrate": "prisma migrate deploy",
     "migrate:dev": "prisma migrate dev",
-    "node:create": "node dist/cli/node-create.js"
+    "node:create": "node dist/cli/node-create.js",
+    "schema": "node dist/export-schema.js ../../template.schema.json"
   },
   "dependencies": {
     "@harrier-gg/contracts": "*",
