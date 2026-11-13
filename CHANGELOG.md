@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.0](https://github.com/harrier-gg/backend/compare/v0.8.0...v0.9.0) (2026-11-13)
+
+
+### Features
+
+* extend the template format for Pterodactyl eggs and publish its JSON Schema ([#42](https://github.com/harrier-gg/backend/issues/42)) ([577b9f6](https://github.com/harrier-gg/backend/commit/577b9f6d6631dd19bcb33fcb3225ae4f31789c19))
+* load templates from the templates repository ([#43](https://github.com/harrier-gg/backend/issues/43)) ([6b6e403](https://github.com/harrier-gg/backend/commit/6b6e403cfc06140016e904cea9ce16b63dfcedf4))
+* run egg servers: all ports, install scripts, generated secrets ([#44](https://github.com/harrier-gg/backend/issues/44)) ([f283feb](https://github.com/harrier-gg/backend/commit/f283feb64e8fcee0781ab35ffb0c7ebce14b8d79))
+* search Modrinth modpacks for a template ([#41](https://github.com/harrier-gg/backend/issues/41)) ([88eaef3](https://github.com/harrier-gg/backend/commit/88eaef30f3f0e03c89aa5093df71d9e486402acf))
+* servers for Modrinth modpacks ([#39](https://github.com/harrier-gg/backend/issues/39)) ([ec14eba](https://github.com/harrier-gg/backend/commit/ec14ebadb8552b2b4f64aa07ba863f8cbf040a53))
+
+
+### Bug Fixes
+
+* answer 503, not 401, when the panel can't check an agent token ([#46](https://github.com/harrier-gg/backend/issues/46)) ([8e068fe](https://github.com/harrier-gg/backend/commit/8e068fe0421beb3d4e35581982b55eb4bc95ebd7))
+
 ## [0.8.0](https://github.com/harrier-gg/backend/compare/v0.7.0...v0.8.0) (2026-11-13)
 
 
