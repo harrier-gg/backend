@@ -12,7 +12,8 @@
     "test": "turbo run test",
     "check-types": "turbo run check-types",
     "lint": "oxlint apps packages",
-    "openapi": "npm run openapi --workspace @harrier-gg/gateway"
+    "openapi": "npm run openapi --workspace @harrier-gg/gateway",
+    "schema": "npm run schema --workspace @harrier-gg/servers"
   },
   "engines": {
     "node": ">=22"

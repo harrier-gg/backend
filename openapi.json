@@ -2131,6 +2131,9 @@
                 },
                 {
                   "type": "number"
+                },
+                {
+                  "type": "boolean"
                 }
               ]
             }
@@ -2195,6 +2198,9 @@
                 },
                 {
                   "type": "number"
+                },
+                {
+                  "type": "boolean"
                 }
               ]
             }
@@ -2247,6 +2253,9 @@
                 },
                 {
                   "type": "number"
+                },
+                {
+                  "type": "boolean"
                 }
               ]
             },
@@ -2413,9 +2422,11 @@
               "string",
               "integer",
               "version",
-              "modpack"
+              "modpack",
+              "boolean",
+              "secret"
             ],
-            "description": "version: pick from GET /templates/versions; modpack: a Modrinth modpack, its name or link"
+            "description": "version: pick from GET /templates/versions; modpack: a Modrinth modpack, its name or link; secret: text not shown in clear"
           },
           "default": {
             "oneOf": [
@@ -2424,6 +2435,9 @@
               },
               {
                 "type": "number"
+              },
+              {
+                "type": "boolean"
               }
             ]
           },

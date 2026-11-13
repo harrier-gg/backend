@@ -12,6 +12,7 @@ import {
   type Reply,
   type ServerStatus,
   type ServerSummary,
+  type SettingValue,
   type TemplateConfigField,
   type TemplateSummary,
   type GameVersion,
@@ -23,6 +24,7 @@ import { AgentHub } from './agents/agent-hub';
 import { Allow } from './auth/auth.guard';
 import { NATS } from './nats';
 
+const SETTING_VALUE = [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }];
 const STATUSES: ServerStatus[] = ['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed', 'sleeping'];
 
 class LocalizedTextDto {
@@ -33,9 +35,12 @@ class LocalizedTextDto {
 class TemplateConfigFieldDto implements TemplateConfigField {
   @ApiProperty() key!: string;
   @ApiProperty({ type: LocalizedTextDto }) label!: LocalizedTextDto;
-  @ApiProperty({ enum: ['string', 'integer', 'version', 'modpack'], description: 'version: pick from GET /templates/versions; modpack: a Modrinth modpack, its name or link' })
-  type!: 'string' | 'integer' | 'version' | 'modpack';
-  @ApiProperty({ oneOf: [{ type: 'string' }, { type: 'number' }] }) default!: string | number;
+  @ApiProperty({
+    enum: ['string', 'integer', 'version', 'modpack', 'boolean', 'secret'],
+    description: 'version: pick from GET /templates/versions; modpack: a Modrinth modpack, its name or link; secret: text not shown in clear',
+  })
+  type!: TemplateConfigField['type'];
+  @ApiProperty({ oneOf: SETTING_VALUE }) default!: SettingValue;
   @ApiPropertyOptional() min?: number;
   @ApiPropertyOptional() max?: number;
   @ApiPropertyOptional() pattern?: string;
@@ -115,8 +120,8 @@ class ServerDto implements ServerSummary {
   @ApiProperty() name!: string;
   @ApiProperty() nodeId!: string;
   @ApiProperty() templateId!: string;
-  @ApiProperty({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] } })
-  settings!: Record<string, string | number>;
+  @ApiProperty({ type: 'object', additionalProperties: { oneOf: SETTING_VALUE } })
+  settings!: Record<string, SettingValue>;
   @ApiProperty({ description: 'Port players connect to on the node' }) hostPort!: number;
   @ApiProperty({ enum: STATUSES }) status!: ServerStatus;
   @ApiProperty({ type: String, nullable: true }) statusMessage!: string | null;
@@ -127,13 +132,13 @@ class CreateServerDto {
   @ApiProperty() nodeId!: string;
   @ApiProperty({ example: 'Survival' }) name!: string;
   @ApiProperty({ example: 'minecraft-java/paper' }) templateId!: string;
-  @ApiPropertyOptional({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] } })
-  settings?: Record<string, string | number>;
+  @ApiPropertyOptional({ type: 'object', additionalProperties: { oneOf: SETTING_VALUE } })
+  settings?: Record<string, SettingValue>;
 }
 
 class SettingsDto {
-  @ApiProperty({ type: 'object', additionalProperties: { oneOf: [{ type: 'string' }, { type: 'number' }] }, description: 'Changed settings; keys left out keep their value' })
-  settings!: Record<string, string | number>;
+  @ApiProperty({ type: 'object', additionalProperties: { oneOf: SETTING_VALUE }, description: 'Changed settings; keys left out keep their value' })
+  settings!: Record<string, SettingValue>;
 }
 
 class MetricPointDto implements MetricPoint {
