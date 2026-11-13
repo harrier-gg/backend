@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpException, Inject, Param, ParseUUIDPipe, Post, Put, Query, Req } from '@nestjs/common';
 import { ClientProxy, MessagePattern, Payload } from '@nestjs/microservices';
 import { ApiBody, ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
+  can,
   Subjects,
+  type ServerPort,
   type AgentsRequestReply,
   type AgentsSendReply,
   type AgentsSendRequest,
@@ -22,11 +24,14 @@ import type { PanelMessage } from '@harrier-gg/protocol';
 import { ContentProjectDto } from './content.controller';
 import { firstValueFrom, timeout } from 'rxjs';
 import { AgentHub } from './agents/agent-hub';
-import { Allow } from './auth/auth.guard';
+import { Allow, type AuthedRequest } from './auth/auth.guard';
 import { NATS } from './nats';
 
 const SETTING_VALUE = [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }];
 const STATUSES: ServerStatus[] = ['installing', 'starting', 'running', 'stopping', 'stopped', 'crashed', 'sleeping'];
+
+/** Secret settings are shown only to users who may manage servers (ADR 0022). */
+const secrets = (req: AuthedRequest) => can(req.user.role, 'manageServers');
 
 class LocalizedTextDto {
   @ApiProperty() en!: string;
@@ -98,6 +103,8 @@ class TemplateDto implements TemplateSummary {
   @ApiProperty({ type: [ContentKindDto], description: 'Content that can be installed (ADR 0017)' }) content!: ContentKindDto[];
   @ApiProperty({ type: String, nullable: true, enum: ['mrpack'], description: 'Pack format for sharing player content (ADR 0018)' }) share!: 'mrpack' | null;
   @ApiProperty({ type: [TemplateConfigFieldDto] }) config!: TemplateConfigFieldDto[];
+  @ApiProperty({ enum: ['image', 'script'], description: '`script`: an install script runs before the first start and on reinstall (ADR 0022)' })
+  install!: 'image' | 'script';
 }
 
 class NodeDto implements NodeSummary {
@@ -116,6 +123,12 @@ class NodeCreatedDto implements NodeCreated {
   @ApiProperty({ description: 'Agent token (HARRIER_AGENT_TOKEN). Shown only once.' }) token!: string;
 }
 
+class ServerPortDto implements ServerPort {
+  @ApiProperty({ example: 'game' }) name!: string;
+  @ApiProperty({ example: 2456 }) port!: number;
+  @ApiProperty({ enum: ['tcp', 'udp'] }) protocol!: 'tcp' | 'udp';
+}
+
 class ServerDto implements ServerSummary {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
@@ -124,6 +137,7 @@ class ServerDto implements ServerSummary {
   @ApiProperty({ type: 'object', additionalProperties: { oneOf: SETTING_VALUE } })
   settings!: Record<string, SettingValue>;
   @ApiProperty({ description: 'Port players connect to on the node' }) hostPort!: number;
+  @ApiProperty({ type: [ServerPortDto], description: 'All ports of the server on the node; the first is hostPort' }) ports!: ServerPortDto[];
   @ApiProperty({ enum: STATUSES }) status!: ServerStatus;
   @ApiProperty({ type: String, nullable: true }) statusMessage!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
@@ -239,8 +253,8 @@ export class ServersController {
 
   @Get('servers')
   @ApiOkResponse({ type: [ServerDto] })
-  list(): Promise<ServerDto[]> {
-    return call(this.nats, Subjects.serversList, {});
+  list(@Req() req: AuthedRequest): Promise<ServerDto[]> {
+    return call(this.nats, Subjects.serversList, { secrets: secrets(req) });
   }
 
   @Post('servers')
@@ -254,8 +268,8 @@ export class ServersController {
 
   @Get('servers/:id')
   @ApiOkResponse({ type: ServerDto })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
-    return call(this.nats, Subjects.serversGet, { id });
+  get(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthedRequest): Promise<ServerDto> {
+    return call(this.nats, Subjects.serversGet, { id, secrets: secrets(req) });
   }
 
   @Get('servers/:id/metrics')
@@ -269,16 +283,25 @@ export class ServersController {
   @Allow('startStopServers')
   @ApiOkResponse({ type: ServerDto })
   @HttpCode(200)
-  start(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
-    return call(this.nats, Subjects.serversStart, { id });
+  start(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthedRequest): Promise<ServerDto> {
+    return call(this.nats, Subjects.serversStart, { id, secrets: secrets(req) });
+  }
+
+  /** Runs the install script again at the next start; the server must be stopped (ADR 0022). */
+  @Post('servers/:id/reinstall')
+  @Allow('manageServers')
+  @ApiOkResponse({ type: ServerDto })
+  @HttpCode(200)
+  reinstall(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
+    return call(this.nats, Subjects.serversReinstall, { id });
   }
 
   @Post('servers/:id/stop')
   @Allow('startStopServers')
   @ApiOkResponse({ type: ServerDto })
   @HttpCode(200)
-  stop(@Param('id', ParseUUIDPipe) id: string): Promise<ServerDto> {
-    return call(this.nats, Subjects.serversStop, { id });
+  stop(@Param('id', ParseUUIDPipe) id: string, @Req() req: AuthedRequest): Promise<ServerDto> {
+    return call(this.nats, Subjects.serversStop, { id, secrets: secrets(req) });
   }
 
   /** Deletes a stopped server with its data and backups on the node. Cannot be undone. */
@@ -321,8 +344,8 @@ export class ServersController {
   @ApiBody({ type: CommandDto })
   @ApiOkResponse({ type: ServerDto })
   @HttpCode(200)
-  command(@Param('id', ParseUUIDPipe) id: string, @Body() body: CommandDto): Promise<ServerDto> {
-    return call(this.nats, Subjects.serversCommand, { id, command: body?.command });
+  command(@Param('id', ParseUUIDPipe) id: string, @Body() body: CommandDto, @Req() req: AuthedRequest): Promise<ServerDto> {
+    return call(this.nats, Subjects.serversCommand, { id, command: body?.command, secrets: secrets(req) });
   }
 }
 

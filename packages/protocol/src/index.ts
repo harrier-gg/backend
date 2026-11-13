@@ -10,6 +10,7 @@ export type * from './generated/EntryKind';
 export type * from './generated/FileEntry';
 export type * from './generated/FileResult';
 export type * from './generated/Hello';
+export type * from './generated/InstallSpec';
 export type * from './generated/MovePath';
 export type * from './generated/PanelMessage';
 export type * from './generated/PathRequest';

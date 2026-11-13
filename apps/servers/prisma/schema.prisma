@@ -36,6 +36,8 @@ model Server {
   settings      Json
   /// Port players connect to on the node.
   hostPort      Int      @map("host_port")
+  /// When the template's install script last finished (the server reached running); null = run it at the next start (ADR 0022).
+  installedAt   DateTime? @map("installed_at")
   /// Last status reported by the agent.
   status        String   @default("stopped")
   statusMessage String?  @map("status_message")

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { buildSpec, knownSettings, TemplateCatalog, templateFileSchema, validateSettings } from './templates';
+import { buildSpec, freePort, knownSettings, maskSecrets, portSpan, serverPorts, TemplateCatalog, templateFileSchema, validateSettings, type Settings } from './templates';
 
 const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates'));
 
@@ -170,14 +170,77 @@ test('boolean and secret fields', () => {
   assert.throws(() => field({ type: 'secret', default: 'ab', min: 5 }), /default does not fit/);
   // Empty = generated per server, even when the pattern or min would reject it; not for plain text.
   assert.doesNotThrow(() => field({ type: 'secret', default: '', min: 5, pattern: '^[a-z]+$' }));
-  // Until that generation exists, a server never gets an empty secret.
-  const generated = field({ type: 'secret', default: '' });
-  assert.ok('error' in validateSettings(generated, {}));
-  assert.ok('error' in validateSettings(generated, { x: '' }));
-  assert.ok('settings' in validateSettings(generated, { x: 'hunter22' }));
+  // Each server gets its own random secret; a typed one is kept.
+  const generated = field({ type: 'secret', default: '', min: 5, max: 20 });
+  const first = validateSettings(generated, {});
+  const second = validateSettings(generated, { x: '' });
+  assert.ok('settings' in first && 'settings' in second);
+  assert.match(String(first.settings.x), /^[A-Za-z0-9]{16}$/);
+  assert.notEqual(first.settings.x, second.settings.x);
+  assert.equal(String((validateSettings(field({ type: 'secret', default: '', max: 8 }), {}) as { settings: Settings }).settings.x).length, 8, 'fits max');
+  assert.deepEqual(validateSettings(generated, { x: 'hunter22' }), { settings: { x: 'hunter22' } });
   assert.throws(() => field({ type: 'string', default: '', min: 5 }), /default does not fit/);
   assert.throws(() => field({ type: 'string', default: 'x', values: { on: '1', off: '0' } }), /only for boolean/);
   assert.throws(() => field({ type: 'boolean', default: true, values: { on: '1' } }), /incomplete/);
+});
+
+test('egg-style spec: ports from the first host port, yolk env, install only when asked, A2S on the query port', () => {
+  const t = egg({
+    runtime: { image: 'yolk', env: { FIXED: 'x' }, startup: './server -port {{SERVER_PORT}}', mountPath: '/home/container' },
+    config: [
+      { key: 'public', label: { en: 'Public' }, type: 'boolean', default: true, env: 'PUBLIC', values: { on: '1', off: '0' } },
+      { key: 'crossplay', label: { en: 'Crossplay' }, type: 'boolean', default: false, env: 'CROSSPLAY' },
+      { key: 'memory', label: { en: 'Memory' }, type: 'integer', default: 4096, limit: 'memory' },
+    ],
+  });
+  const settings = { public: true, crossplay: false, memory: 4096 };
+  const spec = buildSpec(t, settings, 2460);
+  assert.deepEqual(spec.ports, [
+    { containerPort: 2460, hostPort: 2460, protocol: 'udp' }, // samePort: the game announces its own port
+    { containerPort: 2457, hostPort: 2461, protocol: 'udp' },
+  ]);
+  assert.deepEqual(spec.env, {
+    FIXED: 'x',
+    PUBLIC: '1',
+    CROSSPLAY: 'false',
+    STARTUP: './server -port {{SERVER_PORT}}',
+    SERVER_IP: '0.0.0.0',
+    SERVER_PORT: '2460',
+    SERVER_MEMORY: '4096',
+  });
+  assert.deepEqual(spec.query, { protocol: 'a2s', port: 2461 });
+  assert.equal(spec.mountPath, '/home/container');
+  assert.equal(spec.stopSignal, 'SIGINT');
+  assert.equal(spec.install, null, 'installed servers start without the script');
+  assert.deepEqual(buildSpec(t, settings, 2460, undefined, true).install, { image: 'ghcr.io/ptero-eggs/installers:debian', entrypoint: 'bash', script: 'echo hi' });
+  assert.equal(portSpan(t), 2);
+  assert.deepEqual(serverPorts(t, 2460), [
+    { name: 'game', port: 2460, protocol: 'udp' },
+    { name: 'query', port: 2461, protocol: 'udp' },
+  ]);
+
+  // Minecraft (no startup) gets none of the yolk variables: itzg reads SERVER_PORT itself.
+  const paper = catalog.get('minecraft-java/paper')!;
+  const mc = buildSpec(paper, (validateSettings(paper, { version: '1.21.4' }) as { settings: Settings }).settings, 25566, undefined, true);
+  assert.equal(mc.env.SERVER_PORT, undefined);
+  assert.equal(mc.install, null, 'image installs have no script');
+  assert.equal(mc.stopSignal, null);
+  assert.equal(mc.mountPath, null);
+});
+
+test('a new server gets the first block of free ports', () => {
+  assert.equal(freePort([], 2456, 2), 2456);
+  assert.equal(freePort([[2456, 2458]], 2456, 2), 2458, 'a Valheim server takes 2456-2457');
+  assert.equal(freePort([[2457, 2458]], 2456, 2), 2458, 'the second port would clash');
+  assert.equal(freePort([[2450, 2457], [2459, 2460]], 2456, 2), 2457);
+  assert.equal(freePort([[25565, 25566]], 25565, 1), 25566);
+  assert.equal(freePort([[65534, 65536]], 65534, 2), null);
+});
+
+test('secrets are emptied for users who may not manage servers', () => {
+  const t = egg({ config: [{ key: 'password', label: { en: 'P' }, type: 'secret', default: '' }, { key: 'name', label: { en: 'N' }, type: 'string', default: 'x' }] });
+  assert.deepEqual(maskSecrets(t, { password: 'hunter22', name: 'My server' }), { password: '', name: 'My server' });
+  assert.deepEqual(maskSecrets(undefined, { password: 'hunter22' }), {}, 'unknown template: nothing shown');
 });
 
 test('template.schema.json is current (otherwise run `just schema`)', () => {
