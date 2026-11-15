@@ -1,6 +1,7 @@
 import { Controller, Inject, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { ClientProxy, EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import {
+  AgentDisconnectedSchema,
   BackupRefSchema,
   BackupResultEventSchema,
   BackupScheduleSchema,
@@ -143,6 +144,23 @@ export class BackupsController implements OnApplicationBootstrap, OnApplicationS
     if (message.action === 'create') {
       // Still running: the next backup is due on schedule; otherwise only after it runs again.
       await this.db.server.update({ where: { id: server.id }, data: { lastBackupAt: new Date(), activeSinceBackup: server.status === 'running' } });
+    }
+  }
+
+  /**
+   * A disconnected agent can't report the backups it was making (#49): the node's servers are
+   * free again, and the agent itself refuses a second backup while one still runs.
+   */
+  @EventPattern(Subjects.agentsDisconnected)
+  async onDisconnected(@Payload() payload: unknown) {
+    const event = AgentDisconnectedSchema.safeParse(payload);
+    if (!event.success) return;
+    const servers = await this.db.server.findMany({ where: { nodeId: event.data.nodeId }, select: { id: true } });
+    for (const { id } of servers) {
+      const running = this.inProgress.get(id);
+      if (!running) continue;
+      this.inProgress.delete(id);
+      this.lastError.set(id, `The node went offline during the ${running === 'create' ? 'backup' : 'restore'}; check its backups when it is back`);
     }
   }
 

@@ -169,7 +169,9 @@ export class AgentHub implements OnApplicationShutdown {
       socket.on('message', (data) => this.onAgentMessage(node, data.toString()));
       socket.on('close', () => {
         // Only remove the entry if it still belongs to this socket (not to a replacing connection).
-        if (this.agents.get(node.id)?.socket === socket) this.agents.delete(node.id);
+        if (this.agents.get(node.id)?.socket !== socket) return;
+        this.agents.delete(node.id);
+        this.nats.emit(Subjects.agentsDisconnected, { nodeId: node.id });
         this.logger.log(`Agent disconnected: ${node.name}`);
       });
     });
