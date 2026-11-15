@@ -166,6 +166,8 @@ export class ConsoleHub implements OnApplicationShutdown {
       socket.close(4004, 'Server not found');
       return;
     }
+    // Closed while looking the server up: no close event will come to clean up after it.
+    if (socket.readyState !== WebSocket.OPEN) return;
     const server = reply.data;
     const channel = this.channel(server.nodeId, server.id);
     if (!channel) {
