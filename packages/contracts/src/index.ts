@@ -52,6 +52,8 @@ export const Subjects = {
   agentsEvent: 'agents.event',
   /** Gateway → servers (event): an agent finished a backup or restore (ADR 0016). */
   agentsBackup: 'agents.backup',
+  /** Gateway → servers (event): a node's agent disconnected; replies it still owed are lost. */
+  agentsDisconnected: 'agents.disconnected',
   /** Identity (ADR 0006). */
   identitySetupStatus: 'identity.setupStatus',
   identitySetup: 'identity.setup',
@@ -301,6 +303,9 @@ export const BackupScheduleSchema = ServerIdSchema.extend({
   everyHours: z.number().int().min(0).max(168),
   keep: z.number().int().min(1).max(100),
 });
+/** Payload of `agents.disconnected`. */
+export const AgentDisconnectedSchema = z.object({ nodeId: z.string().uuid() });
+
 export const BackupResultEventSchema = z.object({
   nodeId: z.string().uuid(),
   message: z.object({
