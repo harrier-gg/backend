@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { hashPassword } from './crypto';
+import { FailureLimit, clientKey } from './failure-limit';
 import { IdentityController } from './identity.controller';
 
 test('parallel wrong passwords are limited before hashing, per e-mail and address', async () => {
@@ -25,4 +26,25 @@ test('parallel wrong passwords are limited before hashing, per e-mail and addres
   // The owner's own address isn't locked out by someone else's guesses.
   const own = await login('correct horse battery', '198.51.100.1');
   assert.equal('error' in own, false);
+});
+
+test('a full limit refuses unknown keys instead of forgetting live ones', () => {
+  const limit = new FailureLimit(2, 1000, 2);
+  limit.fail('owner@x', 0);
+  limit.fail('a@x', 0);
+  // Full of live counters: a flood of new keys can't push the owner's counter out.
+  assert.equal(limit.blocked('b@x', 10), true);
+  limit.fail('owner@x', 10);
+  assert.equal(limit.blocked('owner@x', 10), true);
+  // Expired counters make room again; forgiving takes one failure back.
+  assert.equal(limit.blocked('b@x', 1001), false);
+  limit.fail('c@x', 2000);
+  limit.forgive('c@x');
+  assert.equal(limit.blocked('c@x', 2000), false);
+});
+
+test('IPv6 clients are limited per /64', () => {
+  assert.equal(clientKey('2001:db8:1:2:aaaa::1'), '2001:db8:1:2::/64');
+  assert.equal(clientKey('::ffff:203.0.113.7'), '203.0.113.7');
+  assert.equal(clientKey(undefined), '');
 });

@@ -11,6 +11,7 @@ import {
   type UserSummary,
 } from '@harrier-gg/contracts';
 import { config } from './config';
+import { FailureLimit, clientKey } from './failure-limit';
 import { HashingBusy, hashPassword, hashToken, newToken, tokensMatch, verifyPassword } from './crypto';
 import type { Db } from './db';
 import { Prisma } from './generated/prisma/client';
@@ -22,8 +23,9 @@ const RENEW_WHEN_DAYS_LEFT = 15;
 const DAY = 24 * 60 * 60 * 1000;
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-/** Failed logins remembered at most; the oldest are forgotten first. */
-const LOGIN_TRACKED = 10_000;
+/** Failures per e-mail from all addresses, and per address for all e-mails. */
+const LOGIN_LIMIT_EMAIL = 50;
+const LOGIN_LIMIT_ADDRESS = 50;
 const BUSY = 'Too many logins at once. Please try again in a moment.';
 
 export const fail = (status: number, detail: string) => ({ error: { status, detail } });
@@ -55,8 +57,15 @@ export class SetupToken implements OnApplicationBootstrap {
 @Controller()
 export class IdentityController {
   private readonly logger = new Logger(IdentityController.name);
-  // ponytail: in-memory limit per e-mail and address of this instance; shared store when identity scales out
-  private readonly failedLogins = new Map<string, { count: number; resetAt: number }>();
+  // Per e-mail and address, so someone else's guesses can't lock the owner out from their own
+  // address; plus higher limits per e-mail (guesses from many addresses) and per address (guesses
+  // across many e-mails). Behind a proxy every address looks the same; then the address limits
+  // act like one shared limit.
+  private readonly failedLogins = {
+    pair: new FailureLimit(LOGIN_LIMIT, LOGIN_WINDOW_MS),
+    email: new FailureLimit(LOGIN_LIMIT_EMAIL, LOGIN_WINDOW_MS),
+    address: new FailureLimit(LOGIN_LIMIT_ADDRESS, LOGIN_WINDOW_MS),
+  };
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -102,15 +111,15 @@ export class IdentityController {
     if (!request.success) return invalid;
     const { email, password, from } = request.data;
 
-    // Per e-mail and client address: someone else's failed guesses can't lock the owner out from
-    // their own address. Behind a proxy all addresses look the same; then it is per e-mail.
-    const key = `${email} ${from ?? ''}`;
-    const now = Date.now();
-    const attempts = this.failedLogins.get(key);
-    const current = attempts && attempts.resetAt > now ? attempts : { count: 0, resetAt: now + LOGIN_WINDOW_MS };
-    if (current.count >= LOGIN_LIMIT) return fail(429, 'Too many failed logins. Please wait a few minutes.');
+    const address = clientKey(from);
+    const keys = [
+      [this.failedLogins.pair, `${email} ${address}`],
+      [this.failedLogins.email, email],
+      [this.failedLogins.address, address],
+    ] as const;
+    if (keys.some(([limit, key]) => limit.blocked(key))) return fail(429, 'Too many failed logins. Please wait a few minutes.');
     // Counted before the slow hash, so parallel requests can't all slip through; a success clears it.
-    this.rememberFailure(key, { ...current, count: current.count + 1 });
+    for (const [limit, key] of keys) limit.fail(key);
 
     const user = await this.db.user.findUnique({ where: { email } });
     let ok: boolean;
@@ -121,23 +130,13 @@ export class IdentityController {
       ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
     } catch (error) {
       if (!(error instanceof HashingBusy)) throw error;
-      this.rememberFailure(key, current);
+      for (const [limit, key] of keys) limit.forgive(key);
       return fail(429, BUSY);
     }
     if (!user || !ok) return invalid;
-    this.failedLogins.delete(key);
+    this.failedLogins.pair.clear(keys[0][1]);
+    this.failedLogins.email.clear(email);
     return { data: await createSession(this.db, user) };
-  }
-
-  /** Keeps the map bounded: guesses with endless random e-mail addresses can't fill the memory. */
-  private rememberFailure(key: string, attempts: { count: number; resetAt: number }) {
-    this.failedLogins.delete(key);
-    if (this.failedLogins.size >= LOGIN_TRACKED) {
-      const now = Date.now();
-      for (const [k, v] of this.failedLogins) if (v.resetAt <= now) this.failedLogins.delete(k);
-      if (this.failedLogins.size >= LOGIN_TRACKED) this.failedLogins.delete(this.failedLogins.keys().next().value!);
-    }
-    this.failedLogins.set(key, attempts);
   }
 
   @MessagePattern(Subjects.identityLogout)
