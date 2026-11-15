@@ -5,6 +5,7 @@ import type { Restart, ServerPlayers, ServerStats } from '@harrier-gg/protocol';
 import type { IncomingMessage } from 'node:http';
 import { firstValueFrom, timeout } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
+import { Sessions } from './auth/session';
 import { NATS } from './nats';
 
 /** Browser WebSocket for one server's live console: `/api/v1/servers/<id>/console`. */
@@ -15,6 +16,8 @@ const BUFFER_BYTES = 64 * 1024;
 // per node bounds the memory a misbehaving agent can use.
 // ponytail: fixed cap; verify server IDs against the servers service if nodes get this many servers
 const MAX_CHANNELS_PER_NODE = 128;
+/** How often an open console checks that its session still exists. */
+const SESSION_RECHECK_MS = 60_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type Players = Omit<ServerPlayers, 'serverId'>;
@@ -53,8 +56,11 @@ export class ConsoleHub implements OnApplicationShutdown {
 
   private readonly flushTimer = setInterval(() => this.flushMinute(), 60_000);
 
-  constructor(@Inject(NATS) private readonly nats: ClientProxy) {
-    this.wss.on('connection', (socket: WebSocket, req: IncomingMessage, user: UserSummary) => void this.accept(socket, req, user));
+  constructor(
+    @Inject(NATS) private readonly nats: ClientProxy,
+    private readonly sessions: Sessions,
+  ) {
+    this.wss.on('connection', (socket: WebSocket, req: IncomingMessage) => void this.accept(socket, req));
   }
 
   onApplicationShutdown() {
@@ -151,7 +157,7 @@ export class ConsoleHub implements OnApplicationShutdown {
     }
   }
 
-  private async accept(socket: WebSocket, req: IncomingMessage, user: UserSummary) {
+  private async accept(socket: WebSocket, req: IncomingMessage) {
     const serverId = CONSOLE_WS_PATH.exec(new URL(req.url ?? '', 'http://x').pathname)?.[1];
     const reply = await firstValueFrom(
       this.nats.send<Reply<ServerSummary>>(Subjects.serversGet, { id: serverId }).pipe(timeout(3000)),
@@ -160,6 +166,8 @@ export class ConsoleHub implements OnApplicationShutdown {
       socket.close(4004, 'Server not found');
       return;
     }
+    // Closed while looking the server up: no close event will come to clean up after it.
+    if (socket.readyState !== WebSocket.OPEN) return;
     const server = reply.data;
     const channel = this.channel(server.nodeId, server.id);
     if (!channel) {
@@ -179,20 +187,36 @@ export class ConsoleHub implements OnApplicationShutdown {
       } satisfies ConsoleEvent),
     );
 
-    socket.on('message', (raw) => {
-      // Everyone may watch; only roles with "sendCommands" may type (ADR 0007).
-      if (!can(user.role, 'sendCommands')) return;
-      let command: unknown;
-      try {
-        command = (JSON.parse(raw.toString()) as { type?: string; command?: unknown }).command;
-      } catch {
-        return;
-      }
-      if (typeof command !== 'string') return;
-      void firstValueFrom(this.nats.send(Subjects.serversCommand, { id: server.id, command }).pipe(timeout(3000))).catch(
-        (error: unknown) => this.logger.warn(`Console command for ${server.id} failed: ${String(error)}`),
-      );
+    // The session and role checked at upgrade can end or change while the tab stays open: an open
+    // console closes once its session is gone, and every command checks the current role.
+    const current = async () => {
+      const session = await this.sessions.fromRequest(req);
+      if (!session) socket.close(4001, 'Session ended');
+      return session?.user ?? null;
+    };
+    const recheck = setInterval(() => void current(), SESSION_RECHECK_MS);
+
+    socket.on('message', (raw) => void this.command(server, raw.toString(), current));
+    socket.on('close', () => {
+      clearInterval(recheck);
+      channel.browsers.delete(socket);
     });
-    socket.on('close', () => channel.browsers.delete(socket));
+  }
+
+  /** A command typed into a console, if the user may still send commands (ADR 0007). */
+  async command(server: { id: string }, raw: string, current: () => Promise<UserSummary | null>) {
+    const user = await current();
+    // Everyone may watch; only roles with "sendCommands" may type.
+    if (!user || !can(user.role, 'sendCommands')) return;
+    let command: unknown;
+    try {
+      command = (JSON.parse(raw) as { type?: string; command?: unknown }).command;
+    } catch {
+      return;
+    }
+    if (typeof command !== 'string') return;
+    await firstValueFrom(this.nats.send(Subjects.serversCommand, { id: server.id, command }).pipe(timeout(3000))).catch(
+      (error: unknown) => this.logger.warn(`Console command for ${server.id} failed: ${String(error)}`),
+    );
   }
 }
