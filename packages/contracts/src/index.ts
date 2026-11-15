@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
 /** NATS subjects. Format: `<service>.<action>`. Define them only here, never as string literals in code. */
+/**
+ * NATS options for every connection: reconnect forever. The client library gives up after 10
+ * attempts (~20 s), which left services running but deaf after a longer NATS restart.
+ */
+export function natsOptions(url: string, queue?: string) {
+  return { servers: [url], maxReconnectAttempts: -1, reconnectTimeWait: 2000, ...(queue ? { queue } : {}) };
+}
+
 export const Subjects = {
   serversHealth: 'servers.health',
   identityHealth: 'identity.health',

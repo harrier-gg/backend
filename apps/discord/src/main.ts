@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { Client, GatewayDispatchEvents, InteractionType, MessageFlags, type API } from '@discordjs/core';
 import { REST } from '@discordjs/rest';
 import { WebSocketManager } from '@discordjs/ws';
-import { AgentsEventSchema, Subjects, type DiscordBotStatus, type Reply, type ServerSummary, type SettingKey, type UserSummary } from '@harrier-gg/contracts';
+import { AgentsEventSchema, natsOptions, Subjects, type DiscordBotStatus, type Reply, type ServerSummary, type SettingKey, type UserSummary } from '@harrier-gg/contracts';
 import { Controller, Inject, Logger, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ClientProxy, ClientProxyFactory, EventPattern, MessagePattern, Payload, Transport, type MicroserviceOptions } from '@nestjs/microservices';
@@ -247,7 +247,7 @@ class BotController {
 }
 
 async function bootstrap() {
-  const nats = ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } });
+  const nats = ClientProxyFactory.create({ transport: Transport.NATS, options: natsOptions(config.HARRIER_NATS_URL) });
   const manager = new BotManager(nats);
 
   @Module({
@@ -262,7 +262,7 @@ async function bootstrap() {
   // Its own queue group: identity and servers get the same events in theirs.
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
     transport: Transport.NATS,
-    options: { servers: [config.HARRIER_NATS_URL], queue: 'discord' },
+    options: natsOptions(config.HARRIER_NATS_URL, 'discord'),
   });
   app.enableShutdownHooks();
   await app.listen();

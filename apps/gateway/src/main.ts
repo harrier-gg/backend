@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Transport, type MicroserviceOptions } from '@nestjs/microservices';
+import { natsOptions } from '@harrier-gg/contracts';
 import { SwaggerModule } from '@nestjs/swagger';
 import { AGENT_WS_PATH } from './agents/agent-hub';
 import { AppModule, config } from './app.module';
@@ -18,7 +19,7 @@ async function bootstrap() {
   app.useGlobalFilters(new ProblemDetailsFilter());
   app.enableShutdownHooks();
   // The gateway also answers NATS requests (agents.send) from the servers service.
-  app.connectMicroservice<MicroserviceOptions>({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } });
+  app.connectMicroservice<MicroserviceOptions>({ transport: Transport.NATS, options: natsOptions(config.HARRIER_NATS_URL) });
   await app.startAllMicroservices();
 
   const { document, contract } = buildOpenApi(app);
