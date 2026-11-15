@@ -15,4 +15,8 @@ sha512: string | null, sha1: string | null,
 /**
  * Hangar only publishes SHA-256.
  */
-sha256: string | null, };
+sha256: string | null, 
+/**
+ * The file is a zip: unpack it into the folder at `path`, replacing that folder.
+ */
+extract: boolean | null, };

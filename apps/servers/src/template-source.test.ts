@@ -28,11 +28,11 @@ test('templates come from the index and are cached; without the index, from the 
   const { db, row } = fakeDb();
 
   const fresh = await loadTemplates(db, pathToFileURL(file).href);
-  assert.equal(fresh.size, 4);
+  assert.equal(fresh.size, 5);
   assert.deepEqual(row()?.index, index);
 
   const offline = await loadTemplates(db, pathToFileURL(join(dir, 'missing.json')).href);
-  assert.equal(offline.size, 4);
+  assert.equal(offline.size, 5);
 
   writeFileSync(file, JSON.stringify({ templates: [] }));
   const empty = await loadTemplates(fakeDb().db, pathToFileURL(file).href);

@@ -2,6 +2,7 @@
 // Templates name a provider per content kind with that provider's own filters; adding a platform
 // is one adapter here.
 import type { ContentProject, ContentSide } from '@harrier-gg/contracts';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { fetchJson, type FetchJson } from './versions';
 
@@ -14,6 +15,8 @@ export interface Artifact {
   sha512?: string;
   sha1?: string;
   sha256?: string;
+  /** A zip the agent unpacks into a folder named `fileName` (ADR 0023). */
+  extract?: boolean;
 }
 
 export interface ContentVersion {
@@ -264,11 +267,138 @@ export function hangar(fetch: FetchJson = fetchJson): ContentProvider {
   return provider;
 }
 
+// ---- Thunderstore (ADR 0023; https://thunderstore.io/api/docs/) ----
+
+const THUNDERSTORE = 'https://thunderstore.io/api';
+const ThunderstoreOptions = z.object({
+  provider: z.literal('thunderstore'),
+  community: z.string().regex(/^[a-z0-9-]{1,64}$/),
+  /** Packages the template already installs, e.g. the mod loader; never installed as content. */
+  provides: z.array(z.string()).default([]),
+});
+type ThunderstoreOptions = z.infer<typeof ThunderstoreOptions>;
+
+interface ThunderstoreListing {
+  namespace: string;
+  name: string;
+  description: string;
+  download_count: number;
+  icon_url: string | null;
+  categories: { name: string }[];
+}
+
+interface ThunderstorePackage {
+  namespace: string;
+  name: string;
+  owner: string;
+  total_downloads: number;
+  latest: { version_number: string; description: string; icon: string | null; download_url: string; dependencies: string[] };
+  community_listings: { community: string; categories: string[] }[];
+}
+
+/** Uploaders pick categories freely, so this is a hint. */
+function thunderstoreSide(categories: string[]): ContentSide {
+  const server = categories.includes('Server-side');
+  const client = categories.includes('Client-side');
+  return server === client ? 'both' : server ? 'server' : 'client';
+}
+
+export function thunderstore(fetch: FetchJson = fetchJson): ContentProvider {
+  // Project IDs are `Namespace-Name`; neither part contains a hyphen.
+  const split = (projectId: string) => {
+    const [namespace, name] = projectId.split('-');
+    if (!namespace || !name || projectId.split('-').length !== 2) throw new Error(`Unexpected Thunderstore package "${projectId}"`);
+    return [namespace, name].map(encodeURIComponent);
+  };
+  const pageUrl = (community: string, namespace: string, name: string) => `https://thunderstore.io/c/${community}/p/${namespace}/${name}/`;
+  const get = async (projectId: string) => {
+    const [namespace, name] = split(projectId);
+    return (await fetch(`${THUNDERSTORE}/experimental/package/${namespace}/${name}/`)) as ThunderstorePackage;
+  };
+  const categories = (p: ThunderstorePackage, community?: string) => (p.community_listings.find((l) => l.community === community) ?? p.community_listings[0])?.categories ?? [];
+  const provider: ContentProvider = {
+    parse: (options) => ThunderstoreOptions.parse(options),
+    async search(options, query) {
+      const o = options as ThunderstoreOptions;
+      // The documented API has no search; this is what thunderstore.io itself uses (ADR 0023).
+      const params = new URLSearchParams({ q: query, ordering: 'most-downloaded', deprecated: 'false', nsfw: 'false' });
+      const page = (await fetch(`${THUNDERSTORE}/cyberstorm/listing/${o.community}/?${params}`)) as { results: ThunderstoreListing[] };
+      return page.results
+        .filter((p) => !o.provides.includes(`${p.namespace}-${p.name}`))
+        .map((p) => ({
+          id: `${p.namespace}-${p.name}`,
+          name: p.name.replaceAll('_', ' '),
+          summary: p.description,
+          author: p.namespace,
+          downloads: p.download_count,
+          iconUrl: p.icon_url,
+          pageUrl: pageUrl(o.community, p.namespace, p.name),
+          side: thunderstoreSide(p.categories.map((c) => c.name)),
+        }));
+    },
+    async latest(options, projectId) {
+      const o = options as ThunderstoreOptions;
+      const p = await get(projectId);
+      const v = p.latest;
+      return {
+        id: v.version_number,
+        name: v.version_number,
+        // No hash and no size in the API: the panel hashes the file once before the agent gets it.
+        artifact: { url: v.download_url, fileName: `${p.namespace}-${p.name}`, size: 0, extract: true },
+        // Dependencies are `Namespace-Name-1.2.3`; the newest version is installed, like for other providers.
+        requires: v.dependencies.map((d) => d.split('-').slice(0, 2).join('-')).filter((id) => !o.provides.includes(id)),
+        side: thunderstoreSide(categories(p, o.community)),
+      };
+    },
+    updates: (options, files, gameVersion) => updatesOneByOne(provider, options, files, gameVersion),
+    async project(projectId) {
+      const p = await get(projectId);
+      const community = p.community_listings[0]?.community ?? 'valheim';
+      return {
+        id: projectId,
+        name: p.name.replaceAll('_', ' '),
+        summary: p.latest.description,
+        author: p.owner,
+        downloads: p.total_downloads,
+        iconUrl: p.latest.icon,
+        pageUrl: pageUrl(community, p.namespace, p.name),
+        side: thunderstoreSide(categories(p)),
+      };
+    },
+  };
+  return provider;
+}
+
+const MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024; // the agent's cap
+// ponytail: one entry per installed version, never evicted; an LRU if panels ever install thousands.
+const hashed = new Map<string, { sha256: string; size: number }>();
+
+/**
+ * Hash on first use (ADR 0023) for artifacts without a hash: the panel downloads the file once,
+ * so the agent can check it got the same file. Versions never change, so the result is kept.
+ */
+export async function hashOnce(url: string): Promise<{ sha256: string; size: number }> {
+  const known = hashed.get(url);
+  if (known) return known;
+  const res = await fetch(url, { signal: AbortSignal.timeout(120_000), headers: { 'user-agent': 'Harrier panel (https://github.com/harrier-gg)' } });
+  if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+  const hash = createHash('sha256');
+  let size = 0;
+  for await (const chunk of res.body) {
+    size += chunk.length;
+    if (size > MAX_DOWNLOAD_BYTES) throw new Error('the file is larger than 512 MiB');
+    hash.update(chunk);
+  }
+  const result = { sha256: hash.digest('hex'), size };
+  hashed.set(url, result);
+  return result;
+}
+
 /** Providers by the name templates use. */
 export type Providers = Record<string, ContentProvider>;
 
 export function providers(fetch: FetchJson = fetchJson): Providers {
-  return { modrinth: modrinth(fetch), hangar: hangar(fetch) };
+  return { modrinth: modrinth(fetch), hangar: hangar(fetch), thunderstore: thunderstore(fetch) };
 }
 
 /** Safe file names only: what the agent writes is `<kind path>/<file name>`. */
