@@ -8,7 +8,7 @@ const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates
 
 test('the official templates load; abstract bases are not offered', () => {
   const ids = catalog.list().map((t) => t.id).sort();
-  assert.deepEqual(ids, ['minecraft-java/fabric', 'minecraft-java/modrinth-modpack', 'minecraft-java/paper', 'minecraft-java/vanilla']);
+  assert.deepEqual(ids, ['minecraft-java/fabric', 'minecraft-java/modrinth-modpack', 'minecraft-java/paper', 'minecraft-java/vanilla', 'valheim/bepinex']);
 });
 
 test('variants inherit from their base and override only what differs', () => {
@@ -274,5 +274,5 @@ test('an index skips templates for newer panels and invalid ones, keeping the re
 test('loading never swaps in a catalog without templates', () => {
   const next = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates'));
   assert.throws(() => next.load([{ schemaVersion: 1, id: 'x/y', abstract: false }], () => {}), /No usable templates/);
-  assert.equal(next.size, 4);
+  assert.equal(next.size, 5);
 });

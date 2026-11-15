@@ -17,7 +17,7 @@ import {
 import type { PanelMessage } from '@harrier-gg/protocol';
 import { randomUUID } from 'node:crypto';
 import { firstValueFrom, timeout } from 'rxjs';
-import { checkedFileName, orphans, type ContentProvider, type ContentVersion, type Providers } from './content';
+import { checkedFileName, hashOnce, orphans, type ContentProvider, type ContentVersion, type Providers } from './content';
 import type { Db } from './db';
 import { DB } from './nodes.controller';
 import { NATS, TEMPLATES, VERSIONS } from './servers.controller';
@@ -240,7 +240,14 @@ export class ContentController {
    */
   private async put(source: Source, provider: string, item: Planned, replaces?: Row): Promise<Reply<Row>> {
     const { server, kind } = source;
-    const { artifact } = item.version;
+    let { artifact } = item.version;
+    if (!artifact.sha512 && !artifact.sha1 && !artifact.sha256) {
+      try {
+        artifact = { ...artifact, ...(await hashOnce(artifact.url!)) };
+      } catch (error) {
+        return fail(502, `Downloading ${artifact.fileName} failed: ${(error as Error).message}`);
+      }
+    }
     const path = `${kind.path}/${checkedFileName(artifact.fileName)}`;
     const reply = await this.request(server.nodeId, {
       type: 'downloadFile',
@@ -252,6 +259,7 @@ export class ContentController {
       sha512: artifact.sha512 ?? null,
       sha1: artifact.sha1 ?? null,
       sha256: artifact.sha256 ?? null,
+      extract: artifact.extract ?? null,
     });
     if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
     const error = reply.result?.error ?? (reply.result ? null : 'The agent did not answer in time');

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkedFileName, hangar, modrinth, orphans } from './content';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { checkedFileName, hangar, hashOnce, modrinth, orphans, thunderstore } from './content';
 import { TemplateCatalog } from './templates';
 
 const catalog = TemplateCatalog.fromDirectory(join(__dirname, '../test/templates'));
@@ -12,6 +15,9 @@ test('templates name their content kinds and sources (ADR 0017)', () => {
   ]);
   assert.equal(catalog.list().find((t) => t.id === 'minecraft-java/paper')?.content[0].kind, 'plugin');
   assert.deepEqual(catalog.list().find((t) => t.id === 'minecraft-java/vanilla')?.content, []);
+  assert.deepEqual(catalog.list().find((t) => t.id === 'valheim/bepinex')?.content, [
+    { kind: 'mod', label: { en: 'Mods', de: 'Mods' }, path: 'BepInEx/plugins', sources: ['thunderstore'] },
+  ]);
 });
 
 test('the Modrinth adapter filters by type, loader and version and picks the primary file', async () => {
@@ -150,4 +156,83 @@ test('hangar: release channel first, SHA-256, Hangar dependencies only', async (
   assert.equal(linked?.name, '2.0-SNAPSHOT');
   assert.equal(linked?.artifact.url, null);
   assert.throws(() => provider.parse({ provider: 'hangar', platform: 'paper' }));
+});
+
+test('thunderstore: search, newest version as a zip, dependencies without the loader (ADR 0023)', async () => {
+  const urls: string[] = [];
+  const listing = (namespace: string, name: string, categories: string[]) => ({
+    namespace,
+    name,
+    description: 'd',
+    download_count: 5,
+    icon_url: null,
+    categories: categories.map((c) => ({ name: c })),
+  });
+  const provider = thunderstore(async (url) => {
+    urls.push(url);
+    if (url.includes('/cyberstorm/listing/valheim/'))
+      return {
+        results: [
+          listing('ArgusMagnus', 'ServersideQoL', ['Server-side']),
+          listing('denikson', 'BepInExPack_Valheim', ['Libraries']),
+          listing('Advize', 'PlantEverything', ['Server-side', 'Client-side']),
+        ],
+      };
+    if (url.endsWith('/experimental/package/RandyKnapp/EpicLoot/'))
+      return {
+        namespace: 'RandyKnapp',
+        name: 'EpicLoot',
+        owner: 'RandyKnapp',
+        total_downloads: 9,
+        latest: {
+          version_number: '0.11.4',
+          description: 'Loot',
+          icon: null,
+          download_url: 'https://thunderstore.io/package/download/RandyKnapp/EpicLoot/0.11.4/',
+          dependencies: ['denikson-BepInExPack_Valheim-5.4.2333', 'ValheimModding-Jotunn-2.30.2'],
+        },
+        community_listings: [{ community: 'valheim', categories: ['Mods', 'Client-side'] }],
+      };
+    throw new Error(url);
+  });
+  const options = provider.parse({ provider: 'thunderstore', community: 'valheim', provides: ['denikson-BepInExPack_Valheim'] });
+
+  const found = await provider.search(options, 'qol', '');
+  assert.match(urls[0], /\/api\/cyberstorm\/listing\/valheim\/\?q=qol&ordering=most-downloaded&deprecated=false&nsfw=false$/);
+  assert.deepEqual(
+    found.map((p) => [p.id, p.side]),
+    [
+      ['ArgusMagnus-ServersideQoL', 'server'],
+      ['Advize-PlantEverything', 'both'],
+    ],
+  );
+  assert.equal(found[0].pageUrl, 'https://thunderstore.io/c/valheim/p/ArgusMagnus/ServersideQoL/');
+
+  assert.deepEqual(await provider.latest(options, 'RandyKnapp-EpicLoot', ''), {
+    id: '0.11.4',
+    name: '0.11.4',
+    artifact: { url: 'https://thunderstore.io/package/download/RandyKnapp/EpicLoot/0.11.4/', fileName: 'RandyKnapp-EpicLoot', size: 0, extract: true },
+    requires: ['ValheimModding-Jotunn'],
+    side: 'client',
+  });
+  await assert.rejects(provider.latest(options, '../x', ''), /Unexpected Thunderstore package/);
+  assert.throws(() => provider.parse({ provider: 'thunderstore', community: '../valheim' }));
+});
+
+test('hashOnce downloads a file once and keeps its hash and size', async () => {
+  let requests = 0;
+  const server = createServer((_req, res) => {
+    requests++;
+    res.end('zip bytes');
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/mod.zip`;
+    const expected = { sha256: createHash('sha256').update('zip bytes').digest('hex'), size: 9 };
+    assert.deepEqual(await hashOnce(url), expected);
+    assert.deepEqual(await hashOnce(url), expected);
+    assert.equal(requests, 1);
+  } finally {
+    server.close();
+  }
 });
