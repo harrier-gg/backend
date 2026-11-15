@@ -26,6 +26,7 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 /** Failures per e-mail from all addresses, and per address for all e-mails. */
 const LOGIN_LIMIT_EMAIL = 50;
 const LOGIN_LIMIT_ADDRESS = 50;
+const KNOWN_ADDRESSES = 10;
 const BUSY = 'Too many logins at once. Please try again in a moment.';
 
 export const fail = (status: number, detail: string) => ({ error: { status, detail } });
@@ -58,14 +59,17 @@ export class SetupToken implements OnApplicationBootstrap {
 export class IdentityController {
   private readonly logger = new Logger(IdentityController.name);
   // Per e-mail and address, so someone else's guesses can't lock the owner out from their own
-  // address; plus higher limits per e-mail (guesses from many addresses) and per address (guesses
-  // across many e-mails). Behind a proxy every address looks the same; then the address limits
-  // act like one shared limit.
+  // address. Higher limits per e-mail (guesses from many addresses; past it, only addresses the
+  // account logged in from before stay open) and per address (guesses across many e-mails).
+  // Behind a proxy every address looks the same; then the address limits act like one shared limit.
   private readonly failedLogins = {
     pair: new FailureLimit(LOGIN_LIMIT, LOGIN_WINDOW_MS),
     email: new FailureLimit(LOGIN_LIMIT_EMAIL, LOGIN_WINDOW_MS),
     address: new FailureLimit(LOGIN_LIMIT_ADDRESS, LOGIN_WINDOW_MS),
   };
+  /** Addresses each account logged in from successfully; they stay open past the e-mail limit. */
+  // ponytail: in memory, like the counters; at most KNOWN_ADDRESSES per account, real accounts only
+  private readonly knownAddresses = new Map<string, string[]>();
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -111,20 +115,21 @@ export class IdentityController {
     if (!request.success) return invalid;
     const { email, password, from } = request.data;
 
-    const address = clientKey(from);
-    const pairKey = `${email} ${address ?? '-'}`;
+    // Without a usable client address (shouldn't happen: the gateway sets it from the socket),
+    // all such logins share one limit rather than none.
+    const address = clientKey(from) ?? 'unknown';
+    const pairKey = `${email} ${address}`;
     const keys: [FailureLimit, string][] = [
       [this.failedLogins.pair, pairKey],
       [this.failedLogins.email, email],
-      // Without a usable client address there is no address limit (rather than one shared one).
-      ...(address ? [[this.failedLogins.address, address] as [FailureLimit, string]] : []),
+      [this.failedLogins.address, address],
     ];
-    // The limit per e-mail only stops addresses that already failed for it: the owner can still
-    // log in from a clean address while their e-mail is being guessed from elsewhere.
+    // Past the limit per e-mail only the addresses this account logged in from before stay open:
+    // a hard ceiling for guessers, while the owner isn't locked out from home.
     const blocked =
       this.failedLogins.pair.blocked(pairKey) ||
-      (address !== null && this.failedLogins.address.blocked(address)) ||
-      (this.failedLogins.email.blocked(email) && this.failedLogins.pair.count(pairKey) > 0);
+      this.failedLogins.address.blocked(address) ||
+      (this.failedLogins.email.blocked(email) && !this.knownAddresses.get(email)?.includes(address));
     if (blocked) return fail(429, 'Too many failed logins. Please wait a few minutes.');
     // Counted before the slow hash, so parallel requests can't all slip through; a success clears it.
     for (const [limit, key] of keys) limit.fail(key);
@@ -143,7 +148,8 @@ export class IdentityController {
     }
     if (!user || !ok) return invalid;
     this.failedLogins.pair.clear(pairKey);
-    this.failedLogins.email.clear(email);
+    const known = [address, ...(this.knownAddresses.get(email) ?? []).filter((a) => a !== address)];
+    this.knownAddresses.set(email, known.slice(0, KNOWN_ADDRESSES));
     return { data: await createSession(this.db, user) };
   }
 

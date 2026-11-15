@@ -32,6 +32,8 @@ export class FailureLimit {
     this.entries.set(key, { count: 1, resetAt: now + this.windowMs });
   }
 
+  // Evicting a counter with n failures takes maxKeys counters with more failures inside one window
+  // (10,000 × n checked passwords, each a slow hash), which the hashing limit makes impossible.
   private makeRoom(now: number) {
     for (const [k, v] of this.entries) if (v.resetAt <= now) this.entries.delete(k);
     if (this.entries.size < this.maxKeys) return;

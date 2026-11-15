@@ -56,7 +56,7 @@ test('client addresses: IPv6 per /64, nothing usable means no address limit', ()
   for (const odd of [undefined, '', 'not an ip', '2001:db8::1:2:3:4:5:6:7']) assert.equal(clientKey(odd), null, String(odd));
 });
 
-test('while an e-mail is guessed from elsewhere, its owner still gets in from a clean address', async () => {
+test('while an e-mail is guessed from many addresses, only its known addresses stay open', async () => {
   const passwordHash = await hashPassword('correct horse battery');
   const db = {
     user: { findUnique: async () => ({ id: 'u', email: 'owner@harrier.test', name: 'O', role: 'owner', passwordHash, createdAt: new Date() }) },
@@ -64,10 +64,12 @@ test('while an e-mail is guessed from elsewhere, its owner still gets in from a 
   };
   const identity = new IdentityController(db as never, { token: null } as never);
   const login = (password: string, from: string) => identity.login({ email: 'owner@harrier.test', password, from });
-  // 60 addresses guess a few times each: past the limit per e-mail.
+  assert.equal('error' in (await login('correct horse battery', '192.0.2.10')), false);
+
+  // 60 addresses guess once each: past the limit per e-mail, fresh addresses get no more guesses.
   for (let i = 0; i < 60; i++) await login('wrong password!', `198.18.0.${i}`);
-  const again = await login('wrong password!', '198.18.0.1');
-  assert.equal('error' in again && again.error.status, 429);
-  const owner = await login('correct horse battery', '192.0.2.10');
-  assert.equal('error' in owner, false);
+  const fresh = await login('correct horse battery', '198.18.1.1');
+  assert.equal('error' in fresh && fresh.error.status, 429);
+  // The owner's address from before still gets in.
+  assert.equal('error' in (await login('correct horse battery', '192.0.2.10')), false);
 });
