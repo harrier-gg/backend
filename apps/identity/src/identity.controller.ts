@@ -112,12 +112,20 @@ export class IdentityController {
     const { email, password, from } = request.data;
 
     const address = clientKey(from);
-    const keys = [
-      [this.failedLogins.pair, `${email} ${address}`],
+    const pairKey = `${email} ${address ?? '-'}`;
+    const keys: [FailureLimit, string][] = [
+      [this.failedLogins.pair, pairKey],
       [this.failedLogins.email, email],
-      [this.failedLogins.address, address],
-    ] as const;
-    if (keys.some(([limit, key]) => limit.blocked(key))) return fail(429, 'Too many failed logins. Please wait a few minutes.');
+      // Without a usable client address there is no address limit (rather than one shared one).
+      ...(address ? [[this.failedLogins.address, address] as [FailureLimit, string]] : []),
+    ];
+    // The limit per e-mail only stops addresses that already failed for it: the owner can still
+    // log in from a clean address while their e-mail is being guessed from elsewhere.
+    const blocked =
+      this.failedLogins.pair.blocked(pairKey) ||
+      (address !== null && this.failedLogins.address.blocked(address)) ||
+      (this.failedLogins.email.blocked(email) && this.failedLogins.pair.count(pairKey) > 0);
+    if (blocked) return fail(429, 'Too many failed logins. Please wait a few minutes.');
     // Counted before the slow hash, so parallel requests can't all slip through; a success clears it.
     for (const [limit, key] of keys) limit.fail(key);
 
@@ -134,7 +142,7 @@ export class IdentityController {
       return fail(429, BUSY);
     }
     if (!user || !ok) return invalid;
-    this.failedLogins.pair.clear(keys[0][1]);
+    this.failedLogins.pair.clear(pairKey);
     this.failedLogins.email.clear(email);
     return { data: await createSession(this.db, user) };
   }

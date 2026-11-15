@@ -28,23 +28,46 @@ test('parallel wrong passwords are limited before hashing, per e-mail and addres
   assert.equal('error' in own, false);
 });
 
-test('a full limit refuses unknown keys instead of forgetting live ones', () => {
-  const limit = new FailureLimit(2, 1000, 2);
+test('a full limit drops the counter with the fewest failures, never one under attack', () => {
+  const limit = new FailureLimit(3, 1000, 2);
+  limit.fail('owner@x', 0);
   limit.fail('owner@x', 0);
   limit.fail('a@x', 0);
-  // Full of live counters: a flood of new keys can't push the owner's counter out.
-  assert.equal(limit.blocked('b@x', 10), true);
+  // A flood of new one-off keys pushes out other one-off keys, not the owner's counter.
+  for (const key of ['b@x', 'c@x', 'd@x']) limit.fail(key, 10);
+  assert.equal(limit.count('owner@x', 10), 2);
+  assert.equal(limit.count('a@x', 10), 0);
   limit.fail('owner@x', 10);
   assert.equal(limit.blocked('owner@x', 10), true);
-  // Expired counters make room again; forgiving takes one failure back.
-  assert.equal(limit.blocked('b@x', 1001), false);
-  limit.fail('c@x', 2000);
-  limit.forgive('c@x');
-  assert.equal(limit.blocked('c@x', 2000), false);
+  // Counters expire; forgiving takes one failure back.
+  assert.equal(limit.blocked('owner@x', 1001), false);
+  limit.fail('e@x', 2000);
+  limit.forgive('e@x');
+  assert.equal(limit.count('e@x', 2000), 0);
 });
 
-test('IPv6 clients are limited per /64', () => {
+test('client addresses: IPv6 per /64, nothing usable means no address limit', () => {
   assert.equal(clientKey('2001:db8:1:2:aaaa::1'), '2001:db8:1:2::/64');
+  assert.equal(clientKey('2001:DB8::1'), '2001:db8:0:0::/64');
+  assert.equal(clientKey('2001:0db8:0001:0002:0:0:0:1'), '2001:db8:1:2::/64');
+  assert.equal(clientKey('::1'), '0:0:0:0::/64');
   assert.equal(clientKey('::ffff:203.0.113.7'), '203.0.113.7');
-  assert.equal(clientKey(undefined), '');
+  assert.equal(clientKey('203.0.113.7'), '203.0.113.7');
+  for (const odd of [undefined, '', 'not an ip', '2001:db8::1:2:3:4:5:6:7']) assert.equal(clientKey(odd), null, String(odd));
+});
+
+test('while an e-mail is guessed from elsewhere, its owner still gets in from a clean address', async () => {
+  const passwordHash = await hashPassword('correct horse battery');
+  const db = {
+    user: { findUnique: async () => ({ id: 'u', email: 'owner@harrier.test', name: 'O', role: 'owner', passwordHash, createdAt: new Date() }) },
+    session: { create: async () => ({}) },
+  };
+  const identity = new IdentityController(db as never, { token: null } as never);
+  const login = (password: string, from: string) => identity.login({ email: 'owner@harrier.test', password, from });
+  // 60 addresses guess a few times each: past the limit per e-mail.
+  for (let i = 0; i < 60; i++) await login('wrong password!', `198.18.0.${i}`);
+  const again = await login('wrong password!', '198.18.0.1');
+  assert.equal('error' in again && again.error.status, 429);
+  const owner = await login('correct horse battery', '192.0.2.10');
+  assert.equal('error' in owner, false);
 });
