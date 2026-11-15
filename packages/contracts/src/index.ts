@@ -455,6 +455,8 @@ export const SetupRequestSchema = z.object({
 export const LoginRequestSchema = z.object({
   email: Email,
   password: z.string().max(256),
+  /** The client's address, set by the gateway (never by the client). */
+  from: z.string().max(64).optional(),
 });
 
 export const SessionTokenSchema = z.object({ sessionToken: z.string().max(100) });

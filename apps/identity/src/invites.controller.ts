@@ -18,7 +18,7 @@ import {
   type UserListEntry,
 } from '@harrier-gg/contracts';
 import { config } from './config';
-import { hashPassword, hashToken, newToken } from './crypto';
+import { HashingBusy, hashPassword, hashToken, newToken } from './crypto';
 import type { Db } from './db';
 import { Prisma } from './generated/prisma/client';
 import { createSession, DB, fail, toUser } from './identity.controller';
@@ -112,7 +112,16 @@ export class InvitesController {
     const request = AcceptInviteSchema.safeParse(payload);
     if (!request.success) return fail(400, 'Name, a valid e-mail address and a password of at least 10 characters are required');
     const { token, name, email, password } = request.data;
-    const passwordHash = await hashPassword(password);
+    // Checked before the slow hash too, so unknown tokens cost nothing (checked again below).
+    const invite = await this.db.invite.findUnique({ where: { tokenHash: hashToken(token) } });
+    if (!invite || invite.usedAt || invite.expiresAt <= new Date()) return fail(404, 'The invitation is invalid, expired or already used');
+    let passwordHash: string;
+    try {
+      passwordHash = await hashPassword(password);
+    } catch (error) {
+      if (!(error instanceof HashingBusy)) throw error;
+      return fail(429, 'Too many accounts are being created right now. Please try again in a moment.');
+    }
 
     try {
       const user = await this.db.$transaction(

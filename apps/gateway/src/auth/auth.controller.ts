@@ -77,8 +77,9 @@ export class AuthController {
   @HttpCode(200)
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ type: UserDto })
-  async login(@Body() body: LoginDto, @Res({ passthrough: true }) res: Response): Promise<UserDto> {
-    return this.startSession(await call<SessionCreated>(this.nats, Subjects.identityLogin, body), res);
+  async login(@Body() body: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<UserDto> {
+    const login = { email: body.email, password: body.password, from: req.ip };
+    return this.startSession(await call<SessionCreated>(this.nats, Subjects.identityLogin, login), res);
   }
 
   @Public()
