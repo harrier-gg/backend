@@ -18,6 +18,8 @@ const MAX_MESSAGE_BYTES = 256 * 1024;
 const MAX_AGENTS = 256;
 /** How long the gateway waits for an agent's reply to a request (ADR 0011). */
 const REQUEST_TIMEOUT_MS = 10_000;
+/** Agents that miss one ping are dropped: a dead connection shows offline within a minute. */
+const PING_MS = 30_000;
 
 export interface ConnectedAgent extends Hello {
   /** Node ID from the agent token (ADR 0004), not chosen by the agent. */
@@ -46,6 +48,9 @@ export class AgentHub implements OnApplicationShutdown {
   /** Open requests by id; only the node they were sent to may answer. */
   private readonly pending = new Map<string, { nodeId: string; resolve: (result: AgentsRequestReply['result']) => void }>();
   private readonly nodeOf = new WeakMap<IncomingMessage, Node>();
+  /** Sockets that answered the last ping (or just connected). */
+  private readonly answered = new WeakSet<WebSocket>();
+  private readonly heartbeat = setInterval(() => this.ping(), PING_MS).unref();
   readonly wss: WebSocketServer;
 
   constructor(
@@ -106,6 +111,7 @@ export class AgentHub implements OnApplicationShutdown {
   }
 
   onApplicationShutdown() {
+    clearInterval(this.heartbeat);
     for (const { socket } of this.agents.values()) socket.close(1001, 'Panel shutting down');
     this.wss.close();
   }
@@ -142,7 +148,25 @@ export class AgentHub implements OnApplicationShutdown {
     }
   }
 
+  /**
+   * Drops agents that didn't answer the last ping. A connection that died without a close
+   * (power loss, NAT timeout) would otherwise stay "online" forever; the close also tells the
+   * servers service (agents.disconnected).
+   */
+  ping(sockets: Iterable<WebSocket> = this.wss.clients) {
+    for (const socket of sockets) {
+      if (!this.answered.has(socket)) {
+        socket.terminate();
+        continue;
+      }
+      this.answered.delete(socket);
+      socket.ping();
+    }
+  }
+
   private accept(socket: WebSocket, node: Node) {
+    this.answered.add(socket);
+    socket.on('pong', () => this.answered.add(socket));
     const timer = setTimeout(() => socket.close(4000, 'No hello received'), HELLO_TIMEOUT_MS);
 
     socket.once('message', (data) => {
