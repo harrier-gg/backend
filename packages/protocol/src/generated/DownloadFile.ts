@@ -17,6 +17,7 @@ sha512: string | null, sha1: string | null,
  */
 sha256: string | null, 
 /**
- * The file is a zip: unpack it into the folder at `path`, replacing that folder.
+ * With `extract`, `path` is a folder (e.g. `BepInEx/plugins/Namespace-Name`) and the verified
+ * file is a zip that is unpacked into it, replacing the folder (Thunderstore, ADR 0023).
  */
 extract: boolean | null, };
