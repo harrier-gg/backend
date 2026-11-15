@@ -1,6 +1,7 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
+import { natsOptions } from '@harrier-gg/contracts';
 import { AgentHub } from './agents/agent-hub';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
@@ -35,7 +36,7 @@ const config = loadConfig();
     ContractRef,
     {
       provide: NATS,
-      useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } }),
+      useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: natsOptions(config.HARRIER_NATS_URL) }),
     },
   ],
 })

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { Controller, Logger, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ClientProxyFactory, MessagePattern, Transport, type MicroserviceOptions } from '@nestjs/microservices';
-import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
+import { natsOptions, Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { config } from './config';
 import { createDb, type Db } from './db';
 import { DB, IdentityController, SetupToken } from './identity.controller';
@@ -26,7 +26,7 @@ class HealthController {
     { provide: DB, useFactory: createDb },
     SetupToken,
     { provide: SETTINGS, useFactory: (db: Db) => new Settings(db, config.HARRIER_APP_KEY), inject: [DB] },
-    { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } }) },
+    { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: natsOptions(config.HARRIER_NATS_URL) }) },
   ],
 })
 class AppModule {}
@@ -34,7 +34,7 @@ class AppModule {}
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
     transport: Transport.NATS,
-    options: { servers: [config.HARRIER_NATS_URL], queue: 'identity' },
+    options: natsOptions(config.HARRIER_NATS_URL, 'identity'),
   });
   app.enableShutdownHooks();
   await app.listen();

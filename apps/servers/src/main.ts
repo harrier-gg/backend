@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { Controller, Logger, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ClientProxyFactory, MessagePattern, Transport, type MicroserviceOptions } from '@nestjs/microservices';
-import { Subjects, type ServiceHealth } from '@harrier-gg/contracts';
+import { natsOptions, Subjects, type ServiceHealth } from '@harrier-gg/contracts';
 import { config } from './config';
 import { createDb, type Db } from './db';
 import { DB, NodesController } from './nodes.controller';
@@ -27,7 +27,7 @@ class HealthController {
   controllers: [HealthController, NodesController, ServersController, BackupsController, ContentController, ShareController],
   providers: [
     { provide: DB, useFactory: createDb },
-    { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: { servers: [config.HARRIER_NATS_URL] } }) },
+    { provide: NATS, useFactory: () => ClientProxyFactory.create({ transport: Transport.NATS, options: natsOptions(config.HARRIER_NATS_URL) }) },
     { provide: VERSIONS, useFactory: () => new VersionProviders() },
     { provide: CONTENT, useFactory: () => providers() },
     { provide: TEMPLATES, inject: [DB], useFactory: (db: Db) => loadTemplates(db, config.HARRIER_TEMPLATES_URL) },
@@ -38,7 +38,7 @@ class AppModule {}
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
     transport: Transport.NATS,
-    options: { servers: [config.HARRIER_NATS_URL], queue: 'servers' },
+    options: natsOptions(config.HARRIER_NATS_URL, 'servers'),
   });
   app.enableShutdownHooks();
   await app.listen();
