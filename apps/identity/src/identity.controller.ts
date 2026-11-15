@@ -11,7 +11,8 @@ import {
   type UserSummary,
 } from '@harrier-gg/contracts';
 import { config } from './config';
-import { hashPassword, hashToken, newToken, tokensMatch, verifyPassword } from './crypto';
+import { FailureLimit, clientKey } from './failure-limit';
+import { HashingBusy, hashPassword, hashToken, newToken, tokensMatch, verifyPassword } from './crypto';
 import type { Db } from './db';
 import { Prisma } from './generated/prisma/client';
 
@@ -22,6 +23,11 @@ const RENEW_WHEN_DAYS_LEFT = 15;
 const DAY = 24 * 60 * 60 * 1000;
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+/** Failures per e-mail from all addresses, and per address for all e-mails. */
+const LOGIN_LIMIT_EMAIL = 50;
+const LOGIN_LIMIT_ADDRESS = 50;
+const KNOWN_ADDRESSES = 10;
+const BUSY = 'Too many logins at once. Please try again in a moment.';
 
 export const fail = (status: number, detail: string) => ({ error: { status, detail } });
 export const toUser = (u: { id: string; email: string; name: string; role: UserSummary['role']; discordName: string | null }): UserSummary => ({
@@ -52,8 +58,18 @@ export class SetupToken implements OnApplicationBootstrap {
 @Controller()
 export class IdentityController {
   private readonly logger = new Logger(IdentityController.name);
-  // ponytail: in-memory limit per e-mail of this instance; shared store when identity scales out
-  private readonly failedLogins = new Map<string, { count: number; resetAt: number }>();
+  // Per e-mail and address, so someone else's guesses can't lock the owner out from their own
+  // address. Higher limits per e-mail (guesses from many addresses; past it, only addresses the
+  // account logged in from before stay open) and per address (guesses across many e-mails).
+  // Behind a proxy every address looks the same; then the address limits act like one shared limit.
+  private readonly failedLogins = {
+    pair: new FailureLimit(LOGIN_LIMIT, LOGIN_WINDOW_MS),
+    email: new FailureLimit(LOGIN_LIMIT_EMAIL, LOGIN_WINDOW_MS),
+    address: new FailureLimit(LOGIN_LIMIT_ADDRESS, LOGIN_WINDOW_MS),
+  };
+  /** Addresses each account logged in from successfully; they stay open past the e-mail limit. */
+  // ponytail: in memory, like the counters; at most KNOWN_ADDRESSES per account, real accounts only
+  private readonly knownAddresses = new Map<string, string[]>();
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -97,24 +113,43 @@ export class IdentityController {
     const request = LoginRequestSchema.safeParse(payload);
     const invalid = fail(401, 'E-mail address or password is wrong');
     if (!request.success) return invalid;
-    const { email, password } = request.data;
+    const { email, password, from } = request.data;
 
-    const attempts = this.failedLogins.get(email);
-    if (attempts && attempts.resetAt > Date.now() && attempts.count >= LOGIN_LIMIT) {
-      return fail(429, 'Too many failed logins. Please wait a few minutes.');
-    }
+    // Without a usable client address (shouldn't happen: the gateway sets it from the socket),
+    // all such logins share one limit rather than none.
+    const address = clientKey(from) ?? 'unknown';
+    const pairKey = `${email} ${address}`;
+    const keys: [FailureLimit, string][] = [
+      [this.failedLogins.pair, pairKey],
+      [this.failedLogins.email, email],
+      [this.failedLogins.address, address],
+    ];
+    // Past the limit per e-mail only the addresses this account logged in from before stay open:
+    // a hard ceiling for guessers, while the owner isn't locked out from home.
+    const blocked =
+      this.failedLogins.pair.blocked(pairKey) ||
+      this.failedLogins.address.blocked(address) ||
+      (this.failedLogins.email.blocked(email) && !this.knownAddresses.get(email)?.includes(address));
+    if (blocked) return fail(429, 'Too many failed logins. Please wait a few minutes.');
+    // Counted before the slow hash, so parallel requests can't all slip through; a success clears it.
+    for (const [limit, key] of keys) limit.fail(key);
 
     const user = await this.db.user.findUnique({ where: { email } });
-    // Without a user, still spend the same time on hashing, so response times do not reveal
-    // which e-mail addresses exist.
-    // Accounts without a password (Discord only, ADR 0008) cannot log in with one.
-    const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
-    if (!user || !ok) {
-      const current = attempts && attempts.resetAt > Date.now() ? attempts : { count: 0, resetAt: Date.now() + LOGIN_WINDOW_MS };
-      this.failedLogins.set(email, { ...current, count: current.count + 1 });
-      return invalid;
+    let ok: boolean;
+    try {
+      // Without a user, still spend the same time on hashing, so response times do not reveal
+      // which e-mail addresses exist.
+      // Accounts without a password (Discord only, ADR 0008) cannot log in with one.
+      ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
+    } catch (error) {
+      if (!(error instanceof HashingBusy)) throw error;
+      for (const [limit, key] of keys) limit.forgive(key);
+      return fail(429, BUSY);
     }
-    this.failedLogins.delete(email);
+    if (!user || !ok) return invalid;
+    this.failedLogins.pair.clear(pairKey);
+    const known = [address, ...(this.knownAddresses.get(email) ?? []).filter((a) => a !== address)];
+    this.knownAddresses.set(email, known.slice(0, KNOWN_ADDRESSES));
     return { data: await createSession(this.db, user) };
   }
 

@@ -8,10 +8,31 @@ const KEY_LENGTH = 32;
 export const PASSWORD_MIN_LENGTH = 10;
 export const PASSWORD_MAX_LENGTH = 256;
 
-function derive(password: string, salt: Buffer, length: number, N: number, r: number, p: number): Promise<Buffer> {
-  return new Promise((resolve, reject) =>
-    scrypt(password, salt, length, { N, r, p, maxmem: 256 * N * r }, (error, key) => (error ? reject(error) : resolve(key))),
-  );
+// Each hash takes ~32 MB and a thread of the libuv pool; floods of logins must not take them all.
+// A few run at once, a few more wait their turn (well under a second each); beyond that, callers
+// answer 429. ponytail: per process, which is the whole identity service for now
+const MAX_HASHING = 4;
+const MAX_WAITING = 32;
+let hashing = 0;
+const waiting: (() => void)[] = [];
+
+/** Thrown when too many passwords are being checked at once; callers answer 429. */
+export class HashingBusy extends Error {}
+
+async function derive(password: string, salt: Buffer, length: number, N: number, r: number, p: number): Promise<Buffer> {
+  if (hashing < MAX_HASHING) hashing++;
+  else if (waiting.length < MAX_WAITING) await new Promise<void>((resolve) => waiting.push(resolve));
+  else throw new HashingBusy('Too many passwords are being checked right now');
+  try {
+    return await new Promise((resolve, reject) =>
+      scrypt(password, salt, length, { N, r, p, maxmem: 256 * N * r }, (error, key) => (error ? reject(error) : resolve(key))),
+    );
+  } finally {
+    // The slot goes straight to the next in line.
+    const next = waiting.shift();
+    if (next) next();
+    else hashing--;
+  }
 }
 
 export async function hashPassword(password: string): Promise<string> {
