@@ -245,15 +245,24 @@ export class AgentHub implements OnApplicationShutdown {
       }
       case 'backupResult':
         // The servers service validates it and only updates servers of this node (ADR 0016).
-        this.nats.emit(Subjects.agentsBackup, { nodeId: node.id, message });
+        this.nats.emit(Subjects.agentsBackup, { nodeId: node.id, message: { ...message, error: clip(message.error, 500) } });
         break;
       case 'serverState':
         this.consoles.status(node.id, message.serverId, message.status, message.message ?? null, restartOf(message.restart));
-        // The servers service validates the payload and only updates servers of this node.
-        this.nats.emit(Subjects.agentsEvent, { nodeId: node.id, message });
+        // The servers service validates the payload and only updates servers of this node. Long
+        // messages (a failed install with its last lines) are shortened, not dropped.
+        this.nats.emit(Subjects.agentsEvent, { nodeId: node.id, message: { ...message, message: clip(message.message, 2000) } });
         break;
     }
   }
+}
+
+/** At most `max` characters: the start (what happened) and the end (the last output lines). */
+export function clip(text: unknown, max: number): string | null {
+  if (typeof text !== 'string') return null;
+  if (text.length <= max) return text;
+  const head = Math.floor(max / 4);
+  return `${text.slice(0, head)}\n…\n${text.slice(text.length - (max - head - 3))}`;
 }
 
 /** The restart info of a crashed server (ADR 0010), reduced to two numbers. Older agents send none. */
