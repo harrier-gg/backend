@@ -176,6 +176,7 @@ test('thunderstore: search, newest version as a zip, dependencies without the lo
           listing('ArgusMagnus', 'ServersideQoL', ['Server-side']),
           listing('denikson', 'BepInExPack_Valheim', ['Libraries']),
           listing('Advize', 'PlantEverything', ['Server-side', 'Client-side']),
+          listing('ebkr', 'r2modman', ['Tools']),
         ],
       };
     if (url.endsWith('/experimental/package/RandyKnapp/EpicLoot/'))
