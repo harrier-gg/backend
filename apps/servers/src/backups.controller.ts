@@ -130,7 +130,7 @@ export class BackupsController implements OnApplicationBootstrap, OnApplicationS
   @EventPattern(Subjects.agentsBackup)
   async onResult(@Payload() payload: unknown) {
     const event = BackupResultEventSchema.safeParse(payload);
-    if (!event.success) return;
+    if (!event.success) return void this.logger.warn(`Ignoring a backup result from an agent: ${event.error.issues[0]?.message}`);
     const { nodeId, message } = event.data;
     const server = await this.db.server.findFirst({ where: { id: message.serverId, nodeId } });
     if (!server) return;

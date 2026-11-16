@@ -270,7 +270,7 @@ export class ServersController {
   @EventPattern(Subjects.agentsEvent)
   async onAgentEvent(@Payload() payload: unknown) {
     const event = AgentsEventSchema.safeParse(payload);
-    if (!event.success) return;
+    if (!event.success) return void this.logger.warn(`Ignoring a server state from an agent: ${event.error.issues[0]?.message}`);
     const { nodeId, message } = event.data;
     const updated = await this.db.server.updateMany({
       where: { id: message.serverId, nodeId },
