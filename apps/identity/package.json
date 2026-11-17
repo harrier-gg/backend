@@ -17,9 +17,9 @@
   "dependencies": {
     "@harrier-gg/contracts": "*",
     "@nats-io/transport-node": "^3.4.0",
-    "@nestjs/common": "^12.4.2",
-    "@nestjs/core": "^12.4.2",
-    "@nestjs/microservices": "^12.4.2",
+    "@nestjs/common": "^12.5.0",
+    "@nestjs/core": "^12.5.0",
+    "@nestjs/microservices": "^12.5.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "pg": "^8.23.1",
