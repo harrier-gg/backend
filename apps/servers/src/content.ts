@@ -324,7 +324,8 @@ export function thunderstore(fetch: FetchJson = fetchJson): ContentProvider {
       const params = new URLSearchParams({ q: query, ordering: 'most-downloaded', deprecated: 'false', nsfw: 'false' });
       const page = (await fetch(`${THUNDERSTORE}/cyberstorm/listing/${o.community}/?${params}`)) as { results: ThunderstoreListing[] };
       return page.results
-        .filter((p) => !o.provides.includes(`${p.namespace}-${p.name}`))
+        // "Tools" are apps for players' PCs (r2modman, ~350 MB), not mods a server can load.
+        .filter((p) => !o.provides.includes(`${p.namespace}-${p.name}`) && !p.categories.some((c) => c.name === 'Tools'))
         .map((p) => ({
           id: `${p.namespace}-${p.name}`,
           name: p.name.replaceAll('_', ' '),
