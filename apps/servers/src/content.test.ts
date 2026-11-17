@@ -196,7 +196,12 @@ test('thunderstore: search, newest version as a zip, dependencies without the lo
       };
     throw new Error(url);
   });
-  const options = provider.parse({ provider: 'thunderstore', community: 'valheim', provides: ['denikson-BepInExPack_Valheim'] });
+  const options = provider.parse({
+    provider: 'thunderstore',
+    community: 'valheim',
+    provides: ['denikson-BepInExPack_Valheim'],
+    folders: { patchers: 'BepInEx/patchers' },
+  });
 
   const found = await provider.search(options, 'qol', '');
   assert.match(urls[0], /\/api\/cyberstorm\/listing\/valheim\/\?q=qol&ordering=most-downloaded&deprecated=false&nsfw=false$/);
@@ -212,12 +217,20 @@ test('thunderstore: search, newest version as a zip, dependencies without the lo
   assert.deepEqual(await provider.latest(options, 'RandyKnapp-EpicLoot', ''), {
     id: '0.11.4',
     name: '0.11.4',
-    artifact: { url: 'https://thunderstore.io/package/download/RandyKnapp/EpicLoot/0.11.4/', fileName: 'RandyKnapp-EpicLoot', size: 0, extract: true },
+    artifact: {
+      url: 'https://thunderstore.io/package/download/RandyKnapp/EpicLoot/0.11.4/',
+      fileName: 'RandyKnapp-EpicLoot',
+      size: 0,
+      extract: true,
+      routes: [{ from: 'patchers', to: 'BepInEx/patchers/RandyKnapp-EpicLoot' }],
+    },
     requires: ['ValheimModding-Jotunn'],
     side: 'client',
   });
   await assert.rejects(provider.latest(options, '../x', ''), /Unexpected Thunderstore package/);
   assert.throws(() => provider.parse({ provider: 'thunderstore', community: '../valheim' }));
+  assert.throws(() => provider.parse({ provider: 'thunderstore', community: 'valheim', folders: { patchers: '../etc' } }));
+  assert.throws(() => provider.parse({ provider: 'thunderstore', community: 'valheim', folders: { 'a/b': 'BepInEx/patchers' } }));
 });
 
 test('hashOnce downloads a file once and keeps its hash and size', async () => {

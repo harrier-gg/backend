@@ -223,11 +223,13 @@ export class ContentController {
 
     const removed: InstalledContent[] = [];
     for (const target of [row, ...orphans(all, [row])]) {
-      const reply = await this.request(row.server.nodeId, { type: 'deletePath', requestId: randomUUID(), serverId: row.serverId, path: target.path });
-      if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
-      const error = reply.result?.error;
-      // A file already gone is fine; the record goes either way.
-      if (error && !/no such file|not found/i.test(error)) return fail(422, error);
+      for (const path of [target.path, ...target.extraPaths]) {
+        const reply = await this.request(row.server.nodeId, { type: 'deletePath', requestId: randomUUID(), serverId: row.serverId, path });
+        if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
+        const error = reply.result?.error;
+        // A file already gone is fine (agents before routes never made extra folders); the record goes either way.
+        if (error && !/no such file|not found/i.test(error)) return fail(422, error);
+      }
       await this.db.installedContent.delete({ where: { id: target.id } });
       removed.push(toInstalled(target));
     }
@@ -260,6 +262,7 @@ export class ContentController {
       sha1: artifact.sha1 ?? null,
       sha256: artifact.sha256 ?? null,
       extract: artifact.extract ?? null,
+      routes: artifact.routes ?? null,
     });
     if (!reply.delivered) return fail(409, 'The node is offline. Start its agent and try again.');
     const error = reply.result?.error ?? (reply.result ? null : 'The agent did not answer in time');
@@ -268,6 +271,7 @@ export class ContentController {
       versionId: item.version.id,
       version: item.version.name,
       path,
+      extraPaths: artifact.routes?.map((r) => r.to) ?? [],
       sha512: artifact.sha512 ?? null,
       sha1: artifact.sha1 ?? null,
       url: artifact.url,
@@ -276,8 +280,9 @@ export class ContentController {
       requires: item.version.requires,
     };
     if (replaces) {
-      if (replaces.path !== path) {
-        await this.request(server.nodeId, { type: 'deletePath', requestId: randomUUID(), serverId: server.id, path: replaces.path });
+      // The agent already empties a route the new version has nothing for; this covers paths that changed.
+      for (const old of [replaces.path, ...replaces.extraPaths].filter((p) => p !== path && !data.extraPaths.includes(p))) {
+        await this.request(server.nodeId, { type: 'deletePath', requestId: randomUUID(), serverId: server.id, path: old });
       }
       return { data: await this.db.installedContent.update({ where: { id: replaces.id }, data }) };
     }

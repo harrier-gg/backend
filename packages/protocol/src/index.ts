@@ -23,6 +23,7 @@ export type * from './generated/ReadFile';
 export type * from './generated/Reject';
 export type * from './generated/Restart';
 export type * from './generated/RestoreBackup';
+export type * from './generated/Route';
 export type * from './generated/RuntimeSpec';
 export type * from './generated/SendCommand';
 export type * from './generated/ServerPlayers';
