@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.9.0](https://github.com/harrier-gg/backend/compare/v0.8.0...v0.9.0) (2026-11-17)
+
+
+### Features
+
+* extend the template format for Pterodactyl eggs and publish its JSON Schema ([#42](https://github.com/harrier-gg/backend/issues/42)) ([577b9f6](https://github.com/harrier-gg/backend/commit/577b9f6d6631dd19bcb33fcb3225ae4f31789c19))
+* install Thunderstore package folders such as patchers where the template says ([#62](https://github.com/harrier-gg/backend/issues/62)) ([d1eb9eb](https://github.com/harrier-gg/backend/commit/d1eb9eb78235068dc624aa294b6ecb65854abde0))
+* load templates from the templates repository ([#43](https://github.com/harrier-gg/backend/issues/43)) ([6b6e403](https://github.com/harrier-gg/backend/commit/6b6e403cfc06140016e904cea9ce16b63dfcedf4))
+* run egg servers: all ports, install scripts, generated secrets ([#44](https://github.com/harrier-gg/backend/issues/44)) ([f283feb](https://github.com/harrier-gg/backend/commit/f283feb64e8fcee0781ab35ffb0c7ebce14b8d79))
+* search Modrinth modpacks for a template ([#41](https://github.com/harrier-gg/backend/issues/41)) ([88eaef3](https://github.com/harrier-gg/backend/commit/88eaef30f3f0e03c89aa5093df71d9e486402acf))
+* servers for Modrinth modpacks ([#39](https://github.com/harrier-gg/backend/issues/39)) ([ec14eba](https://github.com/harrier-gg/backend/commit/ec14ebadb8552b2b4f64aa07ba863f8cbf040a53))
+* Thunderstore mods, hashed on first use and unpacked by the agent ([#47](https://github.com/harrier-gg/backend/issues/47)) ([fbc9763](https://github.com/harrier-gg/backend/commit/fbc9763386b9acbf7086b63d18328752b7565a1c))
+
+
+### Bug Fixes
+
+* answer 503, not 401, when the panel can't check an agent token ([#46](https://github.com/harrier-gg/backend/issues/46)) ([8e068fe](https://github.com/harrier-gg/backend/commit/8e068fe0421beb3d4e35581982b55eb4bc95ebd7))
+* check the current session for every console command ([#56](https://github.com/harrier-gg/backend/issues/56)) ([ecd1829](https://github.com/harrier-gg/backend/commit/ecd1829e3d73e7ec00d03b593e00b19791651de4))
+* free a node's servers from running backups when its agent disconnects ([#51](https://github.com/harrier-gg/backend/issues/51)) ([0b82b06](https://github.com/harrier-gg/backend/commit/0b82b0629a7aed145e3e9474040dce89d064b2ae))
+* hide Thunderstore tools such as r2modman from the mod search ([#61](https://github.com/harrier-gg/backend/issues/61)) ([e1d87f7](https://github.com/harrier-gg/backend/commit/e1d87f72894672b0aae77ebe8f3bf0d65512c45a))
+* login limits that count before hashing and can't lock the owner out ([#57](https://github.com/harrier-gg/backend/issues/57)) ([94f3c23](https://github.com/harrier-gg/backend/commit/94f3c237cf6058e920eb80d37e778af13fe602c4))
+* ping agents and drop the ones whose connection died silently ([#55](https://github.com/harrier-gg/backend/issues/55)) ([761de99](https://github.com/harrier-gg/backend/commit/761de99d32d69348712091fb37bd8f1467284d39))
+* reconnect to NATS forever instead of giving up after ~20 s ([#50](https://github.com/harrier-gg/backend/issues/50)) ([4676efd](https://github.com/harrier-gg/backend/commit/4676efdba903814d95cb5a0c90d91fab9eddf212))
+* shorten long agent messages instead of dropping them, and log rejected ones ([#59](https://github.com/harrier-gg/backend/issues/59)) ([161403a](https://github.com/harrier-gg/backend/commit/161403a00e1a7e70b0d7b39056aed6169240ff27))
+
 ## [0.8.0](https://github.com/harrier-gg/backend/compare/v0.7.0...v0.8.0) (2026-11-13)
 
 
