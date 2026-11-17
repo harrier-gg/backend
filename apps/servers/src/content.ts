@@ -4,6 +4,7 @@
 import type { ContentProject, ContentSide } from '@harrier-gg/contracts';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { ConfigPath } from './templates';
 import { fetchJson, type FetchJson } from './versions';
 
 /** A file to download: the agent checks size and hash before it puts it in place. */
@@ -17,6 +18,8 @@ export interface Artifact {
   sha256?: string;
   /** A zip the agent unpacks into a folder named `fileName` (ADR 0023). */
   extract?: boolean;
+  /** With `extract`: top-level folders of the zip that go to folders of their own (ADR 0023). */
+  routes?: { from: string; to: string }[];
 }
 
 export interface ContentVersion {
@@ -275,6 +278,8 @@ const ThunderstoreOptions = z.object({
   community: z.string().regex(/^[a-z0-9-]{1,64}$/),
   /** Packages the template already installs, e.g. the mod loader; never installed as content. */
   provides: z.array(z.string()).default([]),
+  /** Top-level package folders that go elsewhere, each into `<base>/<Namespace-Name>`, e.g. `patchers: BepInEx/patchers`. */
+  folders: z.record(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), ConfigPath).default({}),
 });
 type ThunderstoreOptions = z.infer<typeof ThunderstoreOptions>;
 
@@ -344,7 +349,13 @@ export function thunderstore(fetch: FetchJson = fetchJson): ContentProvider {
         id: v.version_number,
         name: v.version_number,
         // No hash and no size in the API: the panel hashes the file once before the agent gets it.
-        artifact: { url: v.download_url, fileName: `${p.namespace}-${p.name}`, size: 0, extract: true },
+        artifact: {
+          url: v.download_url,
+          fileName: `${p.namespace}-${p.name}`,
+          size: 0,
+          extract: true,
+          routes: Object.entries(o.folders).map(([from, base]) => ({ from, to: `${base}/${p.namespace}-${p.name}` })),
+        },
         // Dependencies are `Namespace-Name-1.2.3`; the newest version is installed, like for other providers.
         requires: v.dependencies.map((d) => d.split('-').slice(0, 2).join('-')).filter((id) => !o.provides.includes(id)),
         side: thunderstoreSide(categories(p, o.community)),

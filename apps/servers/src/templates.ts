@@ -38,7 +38,7 @@ const ConfigField = z
   .refine((f) => !f.values || f.type === 'boolean', '`values` is only for boolean fields');
 
 /** A path inside the server's data directory: names separated by "/"; no name starts with "." (so no ".."). */
-const ConfigPath = z.string().regex(/^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/);
+export const ConfigPath = z.string().regex(/^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/);
 
 /** A kind of content and where to get it (ADR 0017); each source's options belong to its provider. */
 const ContentKind = z.object({
